@@ -98,7 +98,7 @@ function AppContent() {
 
   const totalBalance = banks.reduce((s, b) => s + getBankBalance(b.id), 0);
   const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-  const isAdmin = user?.email && ADMIN_EMAILS.includes(user.email);
+  const isAdmin = user?.email && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(user.email.toLowerCase());
 
   const handleExportCSV = () => {
     setShowExportMenu(false);
