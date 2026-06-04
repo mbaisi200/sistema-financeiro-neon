@@ -111,7 +111,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         setExpiresAt(expirationDate || null);
         
         // Admin nunca expira
-        if (ADMIN_EMAILS.map(e => e.toLowerCase()).includes((userData.email || '').toLowerCase())) {
+        if (ADMIN_EMAILS.includes(userData.email)) {
           setIsExpired(false);
           return false;
         }

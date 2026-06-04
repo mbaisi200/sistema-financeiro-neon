@@ -25,14 +25,13 @@ export async function POST(request: NextRequest) {
 
     const { uid, email, adminEmail } = await request.json();
 
-    // Verificar se é admin (case-insensitive)
-    const adminEmailsLower = ADMIN_EMAILS.map(e => e.toLowerCase());
-    if (!adminEmailsLower.includes((adminEmail || '').toLowerCase())) {
+    // Verificar se é admin
+    if (!ADMIN_EMAILS.includes(adminEmail)) {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 403 });
     }
 
     // Não permitir excluir admin
-    if (adminEmailsLower.includes((email || '').toLowerCase())) {
+    if (ADMIN_EMAILS.includes(email)) {
       return NextResponse.json({ error: 'Não é possível excluir um administrador.' }, { status: 400 });
     }
 
