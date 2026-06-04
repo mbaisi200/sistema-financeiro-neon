@@ -55,8 +55,9 @@ export async function POST(request: NextRequest) {
 
     const { email, password, adminEmail, expiresAt, operation = 'create', uid }: CreateUserData = await request.json();
 
-    // Verify admin
-    if (!ADMIN_EMAILS.includes(adminEmail)) {
+    // Verify admin (case-insensitive)
+    const adminEmailsLower = ADMIN_EMAILS.map(e => e.toLowerCase());
+    if (!adminEmailsLower.includes((adminEmail || '').toLowerCase())) {
       return NextResponse.json(
         { error: 'Não autorizado. Apenas administradores podem realizar esta ação.' },
         { status: 403 }
@@ -328,7 +329,8 @@ export async function GET(request: NextRequest) {
     const uid = searchParams.get('uid');
     const adminEmail = searchParams.get('adminEmail');
 
-    if (!ADMIN_EMAILS.includes(adminEmail || '')) {
+    const adminEmailsLower = ADMIN_EMAILS.map(e => e.toLowerCase());
+    if (!adminEmailsLower.includes((adminEmail || '').toLowerCase())) {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 403 });
     }
 
