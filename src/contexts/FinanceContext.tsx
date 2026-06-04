@@ -847,25 +847,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     
     console.log('💳 Iniciando pagamento de fatura:', { cardId, bankId, value, date });
 
-    // Create bank transaction (money leaving bank)
-    const { data: txData, error: error1 } = await supabase.from('transactions').insert({
-      user_id: user.id,
-      date,
-      description: 'Pagamento Fatura',
-      bank: bankId,
-      type: 'debit',
-      category: 'pagamento_cartao',
-      value
-    }).select().single();
-    
-    if (error1) {
-      console.error('❌ Erro ao criar transação no banco:', error1);
-      throw error1;
-    }
-    console.log('✅ Transação do banco criada:', txData);
-
-    // Create credit card transaction (negative value = payment, reduces card debt)
-    const { data: ccData, error: error2 } = await supabase.from('credit_card_transactions').insert({
+    // Create credit card transaction FIRST (negative value = payment, reduces card debt)
+    const { data: ccData, error: error1 } = await supabase.from('credit_card_transactions').insert({
       user_id: user.id,
       date,
       description: 'Pagamento Fatura',
@@ -876,11 +859,30 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       invoice_month: date.substring(0, 7)
     }).select().single();
     
-    if (error2) {
-      console.error('❌ Erro ao criar transação no cartão:', error2);
-      throw error2;
+    if (error1) {
+      console.error('❌ Erro ao criar transação no cartão:', error1);
+      throw error1;
     }
     console.log('✅ Transação do cartão criada:', ccData);
+
+    // Create bank transaction (money leaving bank)
+    const { data: txData, error: error2 } = await supabase.from('transactions').insert({
+      user_id: user.id,
+      date,
+      description: 'Pagamento Fatura',
+      bank: bankId,
+      type: 'debit',
+      category: 'pagamento_cartao',
+      value
+    }).select().single();
+    
+    if (error2) {
+      console.error('❌ Erro ao criar transação no banco:', error2);
+      // Rollback: remove a transação do cartão já criada
+      await supabase.from('credit_card_transactions').delete().eq('id', ccData.id);
+      throw error2;
+    }
+    console.log('✅ Transação do banco criada:', txData);
     
     console.log('🔄 Recarregando dados do usuário...');
     await loadUserData(user.id);

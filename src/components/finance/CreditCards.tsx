@@ -12,7 +12,9 @@ export function CreditCards({ showNotification }: { showNotification: (msg: stri
   
   const [cardForm, setCardForm] = useState({ name: '', bank: '', limit: '', icon: '💳' });
   const [purchaseForm, setPurchaseForm] = useState({ date: new Date().toISOString().split('T')[0], description: '', card: '', category: '', value: '' });
-  const [filters, setFilters] = useState({ card: '', date: '' });
+  const [filters, setFilters] = useState({ card: '', date: 'thisMonth' });
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [editTx, setEditTx] = useState<any>(null);
   const [showEdit, setShowEdit] = useState(false);
@@ -26,10 +28,15 @@ export function CreditCards({ showNotification }: { showNotification: (msg: stri
 
   const now = new Date();
   const thisMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+  const lastMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const lastMonthStr = `${lastMonthYear}-${String(lastMonth + 1).padStart(2, '0')}`;
 
   const filteredCcTx = creditCardTransactions.filter(t => {
     if (filters.card && t.card !== filters.card) return false;
     if (filters.date === 'thisMonth' && !t.date.startsWith(thisMonthStr)) return false;
+    if (filters.date === 'lastMonth' && !t.date.startsWith(lastMonthStr)) return false;
+    if (filters.date === 'custom' && customStartDate && customEndDate && (t.date < customStartDate || t.date > customEndDate)) return false;
     return true;
   }).sort((a, b) => b.date.localeCompare(a.date)); // Ordena por data descendente (futuras primeiro)
 
@@ -366,15 +373,23 @@ export function CreditCards({ showNotification }: { showNotification: (msg: stri
        {/* Filters & List */}
        <div className="card">
          <div className="filter-bar">
-           <select className="form-select" value={filters.date} onChange={e => setFilters({...filters, date: e.target.value})}>
-             <option value="">Todos</option>
-             <option value="thisMonth">Este Mês</option>
-           </select>
-           <select className="form-select" value={filters.card} onChange={e => setFilters({...filters, card: e.target.value})}>
-             <option value="">Cartões</option>
-             {creditCards.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-           </select>
-           <button className="btn btn-secondary btn-sm" onClick={() => setFilters({ card: '', date: 'thisMonth' })}>Limpar</button>
+            <select className="form-select" value={filters.date} onChange={e => setFilters({...filters, date: e.target.value})}>
+              <option value="">Todos</option>
+              <option value="thisMonth">Este Mês</option>
+              <option value="lastMonth">Mês Passado</option>
+              <option value="custom">Personalizado</option>
+            </select>
+            {filters.date === 'custom' && (
+              <>
+                <input type="date" className="form-input" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)} placeholder="Data inicial" style={{ maxWidth: '160px' }} />
+                <input type="date" className="form-input" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)} placeholder="Data final" style={{ maxWidth: '160px' }} />
+              </>
+            )}
+            <select className="form-select" value={filters.card} onChange={e => setFilters({...filters, card: e.target.value})}>
+              <option value="">Cartões</option>
+              {creditCards.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+            </select>
+            <button className="btn btn-secondary btn-sm" onClick={() => { setFilters({ card: '', date: 'thisMonth' }); setCustomStartDate(''); setCustomEndDate(''); }}>Limpar</button>
            <button className="btn btn-primary btn-sm" onClick={() => setShowImportCsv(true)} style={{ marginLeft: 'auto' }}>
              📥 Importar CSV
            </button>

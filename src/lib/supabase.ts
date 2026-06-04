@@ -172,6 +172,7 @@ export interface Database {
           category: string;
           value: number;
           is_payment: boolean;
+          invoice_month: string | null;
           created_at: string;
         };
         Insert: {
@@ -183,6 +184,7 @@ export interface Database {
           category: string;
           value: number;
           is_payment?: boolean;
+          invoice_month?: string | null;
           created_at?: string;
         };
         Update: {
@@ -194,6 +196,7 @@ export interface Database {
           category?: string;
           value?: number;
           is_payment?: boolean;
+          invoice_month?: string | null;
           created_at?: string;
         };
       };

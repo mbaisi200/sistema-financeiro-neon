@@ -10,6 +10,8 @@ export function Transactions({ showNotification }: { showNotification: (msg: str
   const { transactions, banks, categories, addTransaction, updateTransaction, deleteTransaction, updateBank, getBankName, getBankIcon, getCategoryName, getCategoryIcon, getBankBalance, exportToCSV, exportToJSON } = useFinance();
   
   const [filters, setFilters] = useState({ bank: '', type: '', category: '', date: 'thisMonth' });
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], description: '', bank: '', type: 'debit' as const, category: '', value: '' });
   const [initialBank, setInitialBank] = useState('');
   const [initialValue, setInitialValue] = useState('');
@@ -24,12 +26,17 @@ export function Transactions({ showNotification }: { showNotification: (msg: str
 
   const now = new Date();
   const thisMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+  const lastMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const lastMonthStr = `${lastMonthYear}-${String(lastMonth + 1).padStart(2, '0')}`;
 
   const filteredTx = transactions.filter(t => {
     if (filters.bank && t.bank !== filters.bank) return false;
     if (filters.type && t.type !== filters.type) return false;
     if (filters.category && t.category !== filters.category) return false;
     if (filters.date === 'thisMonth' && !t.date.startsWith(thisMonthStr)) return false;
+    if (filters.date === 'lastMonth' && !t.date.startsWith(lastMonthStr)) return false;
+    if (filters.date === 'custom' && customStartDate && customEndDate && (t.date < customStartDate || t.date > customEndDate)) return false;
     if (searchTerm && !t.description.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
@@ -266,8 +273,16 @@ export function Transactions({ showNotification }: { showNotification: (msg: str
             <select className="form-select" value={filters.date} onChange={e => setFilters({...filters, date: e.target.value})}>
               <option value="">Todas as Datas</option>
               <option value="thisMonth">Este Mês</option>
+              <option value="lastMonth">Mês Passado</option>
+              <option value="custom">Personalizado</option>
             </select>
-            <button className="btn btn-secondary btn-sm" onClick={() => { setFilters({ bank: '', type: '', category: '', date: 'thisMonth' }); setSearchTerm(''); }}>Limpar</button>
+            {filters.date === 'custom' && (
+              <>
+                <input type="date" className="form-input" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)} placeholder="Data inicial" style={{ maxWidth: '160px' }} />
+                <input type="date" className="form-input" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)} placeholder="Data final" style={{ maxWidth: '160px' }} />
+              </>
+            )}
+            <button className="btn btn-secondary btn-sm" onClick={() => { setFilters({ bank: '', type: '', category: '', date: 'thisMonth' }); setCustomStartDate(''); setCustomEndDate(''); setSearchTerm(''); }}>Limpar</button>
           </div>
         </div>
 
