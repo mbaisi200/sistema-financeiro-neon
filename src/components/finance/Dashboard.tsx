@@ -31,11 +31,13 @@ export function Dashboard() {
    const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
    const fmtDate = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '';
 
-   const thisMonthStr = thisMonthStart.toISOString().split('T')[0];
-   const nowStr = now.toISOString().split('T')[0];
-   const lastMonthStartStr = lastMonthStart.toISOString().split('T')[0];
-   const lastMonthEndStr = lastMonthEnd.toISOString().split('T')[0];
-   const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+   const toLocalDateStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+   const thisMonthStr = toLocalDateStr(thisMonthStart);
+   const nowStr = toLocalDateStr(now);
+   const lastMonthStartStr = toLocalDateStr(lastMonthStart);
+   const lastMonthEndStr = toLocalDateStr(lastMonthEnd);
+   const thisMonthEnd = toLocalDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
    
    const thisMonthYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
    const lastMonthYearMonth = lastMonthStart.getMonth() < 0 
@@ -295,11 +297,11 @@ export function Dashboard() {
   // COMPROMETIMENTO DA RECEITA (CORRIGIDO)
   // ========================================
   // Comprometimento de CAIXA: % que JÁ saiu do banco + agendado (despesas em débito)
-  // Comprometimento de CARTÃO: % da fatura pendente (saldo atual do cartão)
+  // Comprometimento de CARTÃO: % dos gastos no cartão no período (não dívida total acumulada)
   // Comprometimento TOTAL: soma dos dois
   // ========================================
   const cashCommitment = totalIncomeWithScheduled > 0 ? (totalExpensesWithScheduled / totalIncomeWithScheduled) * 100 : 0;
-  const cardCommitment = totalIncomeWithScheduled > 0 ? (totalCardBalance / totalIncomeWithScheduled) * 100 : 0;
+  const cardCommitment = totalIncomeWithScheduled > 0 ? (cardSpentWithScheduled / totalIncomeWithScheduled) * 100 : 0;
   const totalCommitment = cashCommitment + cardCommitment;
 
   // Saúde financeira baseada no comprometimento de CAIXA
@@ -345,8 +347,8 @@ export function Dashboard() {
     for (let i = 0; i < 6; i++) {
       const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
       const monthStr = date.toISOString().substring(0, 7);
-      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0];
-      const monthStart = date.toISOString().split('T')[0];
+      const monthEnd = toLocalDateStr(new Date(date.getFullYear(), date.getMonth() + 1, 0));
+      const monthStart = toLocalDateStr(date);
 
       // Filtrar lançamentos futuros do mês
       const monthScheduled = scheduledTransactions.filter(s =>
@@ -391,8 +393,8 @@ export function Dashboard() {
     let totalIncome = 0;
     for (let i = 0; i < 3; i++) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthStart = date.toISOString().split('T')[0];
-      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0];
+      const monthStart = toLocalDateStr(date);
+      const monthEnd = toLocalDateStr(new Date(date.getFullYear(), date.getMonth() + 1, 0));
 
       const monthIncome = transactions
         .filter(t => t.type === 'credit' && t.date >= monthStart && t.date <= monthEnd)
@@ -406,8 +408,8 @@ export function Dashboard() {
   const averageIncome = getAverageIncome();
 
   // Despesas fixas mensais (recorrentes) - apenas do mês atual
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  const currentMonthStart = toLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+  const currentMonthEnd = toLocalDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
 
   const monthlyFixedExpenses = scheduledTransactions
     .filter(s => {
@@ -560,8 +562,8 @@ export function Dashboard() {
       // Pré-preencher com o primeiro dia do mês atual até hoje
       const today = new Date();
       const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-      setCustomStartDate(firstDay.toISOString().split('T')[0]);
-      setCustomEndDate(today.toISOString().split('T')[0]);
+      setCustomStartDate(toLocalDateStr(firstDay));
+      setCustomEndDate(toLocalDateStr(today));
     }
   };
 

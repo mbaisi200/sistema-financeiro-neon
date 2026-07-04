@@ -119,7 +119,16 @@ export function Transactions({ showNotification }: { showNotification: (msg: str
     <div>
       {/* Novo Lançamento */}
       <div className="card">
-        <h3 style={{ marginBottom: '1rem' }}>📝 Novo Lançamento</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h3 style={{ margin: 0 }}>📝 Novo Lançamento</h3>
+          <button
+            className={`btn btn-sm ${filters.date === '' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setFilters({...filters, date: filters.date === '' ? 'thisMonth' : ''})}
+            title={filters.date === '' ? 'Filtrar apenas este mês' : 'Mostrar lançamentos anteriores'}
+          >
+            {filters.date === '' ? '📅 Ocultar Anteriores' : '📅 Mostrar Anteriores'}
+          </button>
+        </div>
         <div className="form-grid" onKeyPress={handleKeyPress}>
           <div className="form-group">
             <label className="form-label">Data</label>
