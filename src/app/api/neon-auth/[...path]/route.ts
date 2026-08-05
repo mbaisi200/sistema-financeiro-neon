@@ -1,43 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server';
+import https from 'https';
 
 const NEON_AUTH_URL = process.env.NEON_AUTH_BASE_URL!;
 const APP_ORIGIN = 'https://sistema-financeiro-neon.vercel.app';
 
 export const dynamic = 'force-dynamic';
 
+function httpsRequest(url: string, options: https.RequestOptions, body?: string): Promise<{ status: number; data: string; headers: Record<string, string> }> {
+  return new Promise((resolve, reject) => {
+    const req = https.request(url, options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        resolve({
+          status: res.statusCode || 500,
+          data,
+          headers: res.headers as Record<string, string>,
+        });
+      });
+    });
+    req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
 async function proxyRequest(request: NextRequest, path: string[], method: string) {
   const pathStr = path.join('/');
   const url = `${NEON_AUTH_URL}/${pathStr}`;
+  const parsedUrl = new URL(url);
 
   try {
-    const headers = new Headers();
-    if (method === 'POST') {
-      headers.set('Content-Type', request.headers.get('content-type') || 'application/json');
-    }
-    headers.set('Cookie', request.headers.get('cookie') || '');
-    headers.set('Origin', APP_ORIGIN);
-
-    const init: RequestInit = {
-      method,
-      headers,
-      cache: 'no-store',
+    const headers: Record<string, string> = {
+      'Origin': APP_ORIGIN,
+      'Content-Type': 'application/json',
     };
 
-    if (method === 'POST') {
-      init.body = await request.text();
+    const cookie = request.headers.get('cookie');
+    if (cookie) headers['Cookie'] = cookie;
+
+    const body = method === 'POST' ? await request.text() : undefined;
+
+    const result = await httpsRequest(url, {
+      hostname: parsedUrl.hostname,
+      port: 443,
+      path: parsedUrl.pathname + parsedUrl.search,
+      method,
+      headers,
+    }, body);
+
+    const response = new NextResponse(result.data, { status: result.status });
+
+    if (result.headers['set-cookie']) {
+      const cookies = Array.isArray(result.headers['set-cookie'])
+        ? result.headers['set-cookie']
+        : [result.headers['set-cookie']];
+      cookies.forEach((c) => response.headers.append('set-cookie', c));
     }
 
-    const res = await fetch(url, init);
-    const data = await res.text();
-
-    const response = new NextResponse(data, { status: res.status });
-
-    res.headers.forEach((value, key) => {
-      if (key.toLowerCase() === 'set-cookie') {
-        response.headers.append('set-cookie', value);
-      }
-    });
-    response.headers.set('Content-Type', res.headers.get('content-type') || 'application/json');
+    response.headers.set('Content-Type', result.headers['content-type'] || 'application/json');
 
     return response;
   } catch (error: any) {
@@ -45,7 +66,6 @@ async function proxyRequest(request: NextRequest, path: string[], method: string
       error: 'Proxy error',
       message: error.message,
       neonUrl: url,
-      envSet: !!NEON_AUTH_URL,
     }, { status: 500 });
   }
 }
