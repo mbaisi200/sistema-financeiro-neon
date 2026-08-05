@@ -361,22 +361,45 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   // Auth functions - Neon Auth
   const login = async (email: string, password: string) => {
-    const { error } = await authClient.signIn.email({
+    const { data, error } = await authClient.signIn.email({
       email,
       password
     });
     if (error) throw new Error(error.message || 'Erro ao fazer login');
-    // Recarregar página para atualizar estado
+    // Vincular dados existentes ao Neon Auth user
+    try {
+      const sessionRes = await authClient.getSession();
+      const neonUserId = sessionRes.data?.session?.userId || sessionRes.data?.user?.id;
+      if (neonUserId) {
+        await fetch('/api/admin/link-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, neonAuthUserId: neonUserId }),
+        });
+      }
+    } catch {}
     window.location.reload();
   };
 
   const register = async (email: string, password: string) => {
-    const { error } = await authClient.signUp.email({
+    const { data, error } = await authClient.signUp.email({
       email,
       password,
       name: email.split('@')[0]
     });
     if (error) throw new Error(error.message || 'Erro ao criar conta');
+    // Vincular dados existentes ao Neon Auth user
+    try {
+      const sessionRes = await authClient.getSession();
+      const neonUserId = sessionRes.data?.session?.userId || sessionRes.data?.user?.id;
+      if (neonUserId) {
+        await fetch('/api/admin/link-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, neonAuthUserId: neonUserId }),
+        });
+      }
+    } catch {}
   };
 
   const logout = async () => {
