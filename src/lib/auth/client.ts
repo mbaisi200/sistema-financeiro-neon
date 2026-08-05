@@ -1,11 +1,7 @@
 'use client';
 
-const NEON_AUTH_URL = typeof window !== 'undefined' && process.env.NEXT_PUBLIC_NEON_AUTH_URL
-  ? process.env.NEXT_PUBLIC_NEON_AUTH_URL
-  : '/api/auth';
-
 async function request(path: string, body?: any, method = 'POST') {
-  const url = `${NEON_AUTH_URL}${path}`;
+  const url = `/api/auth${path}`;
   const res = await fetch(url, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
@@ -48,7 +44,7 @@ export const authClient = {
   },
   getSession: async () => {
     try {
-      const res = await fetch(`${NEON_AUTH_URL}/get-session`, {
+      const res = await fetch('/api/auth/get-session', {
         credentials: 'include',
         cache: 'no-store',
       });
