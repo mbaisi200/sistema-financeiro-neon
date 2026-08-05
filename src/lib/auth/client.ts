@@ -1,7 +1,7 @@
 'use client';
 
 async function request(path: string, body?: any, method = 'POST') {
-  const url = `/api/auth${path}`;
+  const url = `/api/neon-auth${path}`;
   const res = await fetch(url, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
@@ -44,7 +44,7 @@ export const authClient = {
   },
   getSession: async () => {
     try {
-      const res = await fetch('/api/auth/get-session', {
+      const res = await fetch('/api/neon-auth/get-session', {
         credentials: 'include',
         cache: 'no-store',
       });
