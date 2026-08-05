@@ -8,6 +8,7 @@ export async function GET(request: NextRequest, { params }: { params: { path: st
 
   const headers = new Headers();
   headers.set('Cookie', request.headers.get('cookie') || '');
+  headers.set('Origin', request.headers.get('origin') || `${request.nextUrl.protocol}//${request.nextUrl.host}`);
 
   const res = await fetch(url, { headers, cache: 'no-store' });
   const data = await res.text();
@@ -31,6 +32,7 @@ export async function POST(request: NextRequest, { params }: { params: { path: s
   const headers = new Headers();
   headers.set('Content-Type', request.headers.get('Content-Type') || 'application/json');
   headers.set('Cookie', request.headers.get('cookie') || '');
+  headers.set('Origin', request.headers.get('origin') || `${request.nextUrl.protocol}//${request.nextUrl.host}`);
 
   const res = await fetch(url, { method: 'POST', headers, body });
   const data = await res.text();
