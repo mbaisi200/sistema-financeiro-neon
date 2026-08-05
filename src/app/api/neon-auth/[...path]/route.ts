@@ -36,8 +36,11 @@ async function proxyRequest(request: NextRequest, path: string[], method: string
       'Content-Type': 'application/json',
     };
 
-    const cookie = request.headers.get('cookie');
-    if (cookie) headers['Cookie'] = cookie;
+    const needsCookie = !(pathStr.startsWith('sign-in') || pathStr.startsWith('sign-up'));
+    if (needsCookie) {
+      const cookie = request.headers.get('cookie');
+      if (cookie) headers['Cookie'] = cookie;
+    }
 
     const body = method === 'POST' ? await request.text() : undefined;
 
