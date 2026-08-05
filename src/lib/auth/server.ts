@@ -1,15 +1,29 @@
-import { createNeonAuth } from '@neondatabase/auth/next/server';
+import { cookies } from 'next/headers';
 
-export const auth = createNeonAuth({
-  baseUrl: process.env.NEON_AUTH_BASE_URL!,
-  cookies: {
-    secret: process.env.NEON_AUTH_COOKIE_SECRET!,
-  },
-});
+const NEON_AUTH_URL = process.env.NEON_AUTH_BASE_URL!;
+
+export async function getSession(): Promise<{ user: { id: string; email: string } | null; session: any } | null> {
+  try {
+    const cookieStore = cookies();
+    const allCookies = cookieStore.getAll();
+    const cookieHeader = allCookies.map(c => `${c.name}=${c.value}`).join('; ');
+
+    const res = await fetch(`${NEON_AUTH_URL}/get-session`, {
+      headers: { Cookie: cookieHeader },
+      cache: 'no-store',
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data;
+  } catch {
+    return null;
+  }
+}
 
 export async function getUserId(): Promise<string | null> {
   try {
-    const { data: session } = await auth.getSession();
+    const session = await getSession();
     return session?.user?.id ?? null;
   } catch {
     return null;
