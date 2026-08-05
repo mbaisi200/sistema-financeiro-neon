@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const NEON_AUTH_URL = process.env.NEON_AUTH_BASE_URL!;
-const APP_ORIGIN = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const APP_ORIGIN = 'https://sistema-financeiro-neon.vercel.app';
 
 export async function GET(request: NextRequest, { params }: { params: { path: string[] } }) {
   const path = params.path.join('/');
