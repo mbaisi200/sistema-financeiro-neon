@@ -387,7 +387,12 @@ import { toUpperCase, type CreditCardTransaction } from '@/lib/types';
    };
 
    const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-   const fmtDate = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '';
+    const fmtDate = (d: string) => {
+      if (!d) return '';
+      const parts = d.split('-');
+      if (parts.length !== 3) return d;
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    };
    
    const formatMonthYear = (yearMonth: string): string => {
      const [year, month] = yearMonth.split('-');

@@ -49,7 +49,12 @@ export function ScheduledTransactions({ showNotification }: { showNotification: 
   const [filterStatus, setFilterStatus] = useState<'all' | 'today' | 'overdue' | 'upcoming'>('all');
 
   const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-  const fmtDate = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '';
+  const fmtDate = (d: string) => {
+    if (!d) return '';
+    const parts = d.split('-');
+    if (parts.length !== 3) return d;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  };
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -76,7 +81,12 @@ export function ScheduledTransactions({ showNotification }: { showNotification: 
   // Agrupar por mês
   const groupedByMonth = filteredScheduled.reduce((acc, s) => {
     const monthKey = s.dueDate.substring(0, 7); // YYYY-MM
-    const monthName = new Date(s.dueDate + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    const monthName = (() => {
+      const parts = s.dueDate.split('-');
+      if (parts.length !== 3) return s.dueDate;
+      const months = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+      return `${months[parseInt(parts[1], 10) - 1]} de ${parts[0]}`;
+    })();
     if (!acc[monthKey]) {
       acc[monthKey] = { name: monthName, items: [] };
     }

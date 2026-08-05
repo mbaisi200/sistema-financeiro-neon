@@ -1,37 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { toUpperCase } from '@/lib/types';
+import { apiQueryOne, apiExecute } from '@/lib/api-helpers';
+import { getUserId } from '@/lib/auth/server';
 
 export const dynamic = 'force-dynamic';
 
 // Confirmar lançamento futuro e criar transação
 export async function POST(request: NextRequest) {
   try {
-    const { createClient } = await import('@supabase/supabase-js');
-    
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const authHeader = request.headers.get('authorization');
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json({ error: 'Configuração incompleta' }, { status: 500 });
-    }
+    const userId = await getUserId();
 
-    const supabase = createClient(supabaseUrl, authHeader || supabaseAnonKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader?.replace('Bearer ', ''));
-    
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
     const body = await request.json();
-    const { 
-      scheduledId, 
-      confirmedValue, 
+    const {
+      scheduledId,
+      confirmedValue,
       confirmedDate,
-      confirmedDescription 
+      confirmedDescription
     } = body;
 
     if (!scheduledId) {
@@ -39,14 +27,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar lançamento agendado
-    const { data: scheduled, error: fetchError } = await supabase
-      .from('scheduled_transactions')
-      .select('*')
-      .eq('id', scheduledId)
-      .eq('user_id', user.id)
-      .single();
+    const scheduled = await apiQueryOne(
+      'SELECT * FROM scheduled_transactions WHERE id = $1 AND user_id = $2',
+      [scheduledId, userId]
+    );
 
-    if (fetchError || !scheduled) {
+    if (!scheduled) {
       return NextResponse.json({ error: 'Lançamento não encontrado' }, { status: 404 });
     }
 
@@ -57,84 +43,52 @@ export async function POST(request: NextRequest) {
     // Criar transação
     if (scheduled.card) {
       // Transação de cartão de crédito
-      const { error: txError } = await supabase
-        .from('credit_card_transactions')
-        .insert({
-          user_id: user.id,
-          date: date,
-          description: toUpperCase(description),
-          card: scheduled.card,
-          category: scheduled.category,
-          value: value,
-          is_payment: false
-        });
-
-      if (txError) {
-        console.error('Erro ao criar transação de cartão:', txError);
-        return NextResponse.json({ error: 'Erro ao criar transação: ' + txError.message }, { status: 500 });
-      }
+      await apiExecute(
+        `INSERT INTO credit_card_transactions (user_id, date, description, card, category, value, is_payment)
+         VALUES ($1, $2, $3, $4, $5, $6, false)`,
+        [userId, date, toUpperCase(description), scheduled.card, scheduled.category, value]
+      );
     } else if (scheduled.bank) {
       // Transação bancária
-      const { error: txError } = await supabase
-        .from('transactions')
-        .insert({
-          user_id: user.id,
-          date: date,
-          description: toUpperCase(description),
-          bank: scheduled.bank,
-          type: 'debit',
-          category: scheduled.category,
-          value: value
-        });
-
-      if (txError) {
-        console.error('Erro ao criar transação bancária:', txError);
-        return NextResponse.json({ error: 'Erro ao criar transação: ' + txError.message }, { status: 500 });
-      }
+      await apiExecute(
+        `INSERT INTO transactions (user_id, date, description, bank, type, category, value)
+         VALUES ($1, $2, $3, $4, 'debit', $5, $6)`,
+        [userId, date, toUpperCase(description), scheduled.bank, scheduled.category, value]
+      );
     } else {
       return NextResponse.json({ error: 'Lançamento sem banco ou cartão definido' }, { status: 400 });
     }
 
     // Atualizar status do lançamento agendado
-    const { error: updateError } = await supabase
-      .from('scheduled_transactions')
-      .update({ 
-        status: 'confirmed', 
-        is_paid: true 
-      })
-      .eq('id', scheduledId);
-
-    if (updateError) {
-      console.error('Erro ao atualizar lançamento:', updateError);
-      // Não falha aqui, a transação já foi criada
-    }
+    await apiExecute(
+      'UPDATE scheduled_transactions SET status = $1, is_paid = $2 WHERE id = $3',
+      ['confirmed', true, scheduledId]
+    );
 
     // Se for recorrente, criar próximo lançamento
     if (scheduled.type === 'recurring') {
       const nextDueDate = new Date(scheduled.due_date);
       nextDueDate.setMonth(nextDueDate.getMonth() + 1);
-      
-      await supabase
-        .from('scheduled_transactions')
-        .insert({
-          user_id: user.id,
-          description: scheduled.description.replace(/\(\d+\/\d+\)/, '').trim(),
-          type: 'recurring',
-          value: scheduled.value,
-          total_installments: 999,
-          current_installment: scheduled.current_installment + 1,
-          due_date: nextDueDate.toISOString().split('T')[0],
-          category: scheduled.category,
-          bank: scheduled.bank,
-          card: scheduled.card,
-          auto_confirm: scheduled.auto_confirm,
-          status: 'pending',
-          is_paid: false
-        });
+
+      await apiExecute(
+        `INSERT INTO scheduled_transactions (user_id, description, type, value, total_installments, current_installment, due_date, category, bank, card, auto_confirm, status, is_paid)
+         VALUES ($1, $2, 'recurring', $3, 999, $4, $5, $6, $7, $8, $9, 'pending', false)`,
+        [
+          userId,
+          scheduled.description.replace(/\(\d+\/\d+\)/, '').trim(),
+          scheduled.value,
+          scheduled.current_installment + 1,
+          nextDueDate.toISOString().split('T')[0],
+          scheduled.category,
+          scheduled.bank,
+          scheduled.card,
+          scheduled.auto_confirm
+        ]
+      );
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: 'Lançamento confirmado com sucesso!',
       transactionCreated: true
     });

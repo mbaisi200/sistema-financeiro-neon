@@ -1,51 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { toUpperCase } from '@/lib/types';
+import { apiQuery, apiInsert, apiExecute } from '@/lib/api-helpers';
+import { getUserId } from '@/lib/auth/server';
 
 export const dynamic = 'force-dynamic';
 
 // Listar lançamentos futuros
 export async function GET(request: NextRequest) {
   try {
-    const { createClient } = await import('@supabase/supabase-js');
-    
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const authHeader = request.headers.get('authorization');
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json({ error: 'Configuração incompleta' }, { status: 500 });
-    }
+    const userId = await getUserId();
 
-    // Usar token do usuário para respeitar RLS
-    const supabase = createClient(supabaseUrl, authHeader || supabaseAnonKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
-
-    // Obter usuário do token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader?.replace('Bearer ', ''));
-    
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
-    // Verificar se a tabela existe, se não, criar
-    await ensureTableExists(supabase);
+    const data = await apiQuery(
+      'SELECT * FROM scheduled_transactions WHERE user_id = $1 AND status = $2 ORDER BY due_date ASC',
+      [userId, 'pending']
+    );
 
-    // Buscar lançamentos
-    const { data, error } = await supabase
-      .from('scheduled_transactions')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('status', 'pending')
-      .order('due_date', { ascending: true });
-
-    if (error) {
-      console.error('Erro ao buscar lançamentos:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ 
-      scheduledTransactions: (data || []).map(item => ({
+    return NextResponse.json({
+      scheduledTransactions: data.map((item: any) => ({
         id: item.id,
         description: item.description,
         type: item.type,
@@ -71,90 +46,64 @@ export async function GET(request: NextRequest) {
 // Criar lançamento futuro
 export async function POST(request: NextRequest) {
   try {
-    const { createClient } = await import('@supabase/supabase-js');
-    
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const authHeader = request.headers.get('authorization');
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json({ error: 'Configuração incompleta' }, { status: 500 });
-    }
+    const userId = await getUserId();
 
-    const supabase = createClient(supabaseUrl, authHeader || supabaseAnonKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader?.replace('Bearer ', ''));
-    
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
-    // Verificar se a tabela existe
-    await ensureTableExists(supabase);
-
     const body = await request.json();
-    const { 
-      description, 
-      type, 
-      value, 
-      totalInstallments, 
-      dueDate, 
-      category, 
-      bank, 
+    const {
+      description,
+      type,
+      value,
+      totalInstallments,
+      dueDate,
+      category,
+      bank,
       card,
-      autoConfirm 
+      autoConfirm
     } = body;
 
     if (!description || !dueDate || !value) {
       return NextResponse.json({ error: 'Descrição, data e valor são obrigatórios' }, { status: 400 });
     }
 
-    // Criar lançamento(s)
     const installments = type === 'parcel' ? (totalInstallments || 1) : 1;
     const createdItems = [];
 
     for (let i = 0; i < installments; i++) {
-      // Calcular data de vencimento para cada parcela
       const dueDateObj = new Date(dueDate);
       dueDateObj.setMonth(dueDateObj.getMonth() + i);
       const calculatedDueDate = dueDateObj.toISOString().split('T')[0];
 
-      const insertData: Record<string, unknown> = {
-        user_id: user.id,
-        description: toUpperCase(description) + (installments > 1 ? ` (${i + 1}/${installments})` : ''),
-        type: type || 'single',
-        value: value,
-        total_installments: installments,
-        current_installment: i + 1,
-        due_date: calculatedDueDate,
-        category: category || null,
-        bank: bank || null,
-        card: card || null,
-        auto_confirm: autoConfirm || false,
-        status: 'pending',
-        is_paid: false
-      };
+      const data = await apiInsert(
+        `INSERT INTO scheduled_transactions (user_id, description, type, transaction_type, value, total_installments, current_installment, due_date, category, bank, card, auto_confirm, status, is_paid)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pending', false)
+         RETURNING *`,
+        [
+          userId,
+          toUpperCase(description) + (installments > 1 ? ` (${i + 1}/${installments})` : ''),
+          type || 'single',
+          'debit',
+          value,
+          installments,
+          i + 1,
+          calculatedDueDate,
+          category || null,
+          bank || null,
+          card || null,
+          autoConfirm || false
+        ]
+      );
 
-      const { data, error } = await supabase
-        .from('scheduled_transactions')
-        .insert(insertData)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Erro ao criar lançamento:', error);
-        // Continua para criar as outras parcelas
-      } else if (data) {
-        createdItems.push(data);
-      }
+      if (data) createdItems.push(data);
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: `${createdItems.length} lançamento(s) criado(s)`,
-      items: createdItems 
+      items: createdItems
     });
 
   } catch (error) {
@@ -166,23 +115,9 @@ export async function POST(request: NextRequest) {
 // Atualizar lançamento
 export async function PUT(request: NextRequest) {
   try {
-    const { createClient } = await import('@supabase/supabase-js');
-    
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const authHeader = request.headers.get('authorization');
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json({ error: 'Configuração incompleta' }, { status: 500 });
-    }
+    const userId = await getUserId();
 
-    const supabase = createClient(supabaseUrl, authHeader || supabaseAnonKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader?.replace('Bearer ', ''));
-    
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
@@ -193,26 +128,30 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ID é obrigatório' }, { status: 400 });
     }
 
-    const updateData: Record<string, unknown> = {};
-    if (updates.description !== undefined) updateData.description = toUpperCase(updates.description);
-    if (updates.value !== undefined) updateData.value = updates.value;
-    if (updates.dueDate !== undefined) updateData.due_date = updates.dueDate;
-    if (updates.category !== undefined) updateData.category = updates.category;
-    if (updates.bank !== undefined) updateData.bank = updates.bank;
-    if (updates.card !== undefined) updateData.card = updates.card;
-    if (updates.autoConfirm !== undefined) updateData.auto_confirm = updates.autoConfirm;
-    if (updates.status !== undefined) updateData.status = updates.status;
+    const updateFields: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
 
-    const { error } = await supabase
-      .from('scheduled_transactions')
-      .update(updateData)
-      .eq('id', id)
-      .eq('user_id', user.id);
+    if (updates.description !== undefined) { updateFields.push(`description = $${paramIndex++}`); values.push(toUpperCase(updates.description)); }
+    if (updates.value !== undefined) { updateFields.push(`value = $${paramIndex++}`); values.push(updates.value); }
+    if (updates.dueDate !== undefined) { updateFields.push(`due_date = $${paramIndex++}`); values.push(updates.dueDate); }
+    if (updates.category !== undefined) { updateFields.push(`category = $${paramIndex++}`); values.push(updates.category); }
+    if (updates.bank !== undefined) { updateFields.push(`bank = $${paramIndex++}`); values.push(updates.bank); }
+    if (updates.card !== undefined) { updateFields.push(`card = $${paramIndex++}`); values.push(updates.card); }
+    if (updates.autoConfirm !== undefined) { updateFields.push(`auto_confirm = $${paramIndex++}`); values.push(updates.autoConfirm); }
+    if (updates.status !== undefined) { updateFields.push(`status = $${paramIndex++}`); values.push(updates.status); }
 
-    if (error) {
-      console.error('Erro ao atualizar:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (updateFields.length === 0) {
+      return NextResponse.json({ error: 'Nenhum dado para atualizar' }, { status: 400 });
     }
+
+    values.push(id);
+    values.push(userId);
+
+    await apiExecute(
+      `UPDATE scheduled_transactions SET ${updateFields.join(', ')} WHERE id = $${paramIndex} AND user_id = $${paramIndex + 1}`,
+      values
+    );
 
     return NextResponse.json({ success: true });
 
@@ -225,23 +164,9 @@ export async function PUT(request: NextRequest) {
 // Excluir lançamento
 export async function DELETE(request: NextRequest) {
   try {
-    const { createClient } = await import('@supabase/supabase-js');
-    
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const authHeader = request.headers.get('authorization');
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json({ error: 'Configuração incompleta' }, { status: 500 });
-    }
+    const userId = await getUserId();
 
-    const supabase = createClient(supabaseUrl, authHeader || supabaseAnonKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader?.replace('Bearer ', ''));
-    
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
@@ -252,40 +177,15 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID é obrigatório' }, { status: 400 });
     }
 
-    const { error } = await supabase
-      .from('scheduled_transactions')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
-
-    if (error) {
-      console.error('Erro ao excluir:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    await apiExecute(
+      'DELETE FROM scheduled_transactions WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
 
     return NextResponse.json({ success: true });
 
   } catch (error) {
     console.error('Erro:', error);
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
-  }
-}
-
-// Função para criar tabela se não existir
-async function ensureTableExists(supabase: any) {
-  try {
-    // Tentar selecionar para ver se a tabela existe
-    const { error } = await supabase
-      .from('scheduled_transactions')
-      .select('id')
-      .limit(1);
-    
-    if (error && error.code === '42P01') {
-      // Tabela não existe - não podemos criar via SDK, 
-      // mas retornamos erro informando que precisa ser criada no Supabase
-      console.warn('Tabela scheduled_transactions não existe. Crie no Supabase Dashboard.');
-    }
-  } catch (err) {
-    console.warn('Erro ao verificar tabela:', err);
   }
 }

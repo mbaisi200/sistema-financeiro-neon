@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ADMIN_EMAILS } from '@/lib/types';
+import { apiQuery, apiQueryOne } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
-// Estimativa de bytes por linha por tabela (baseado em PostgreSQL)
 const ROW_SIZE_ESTIMATES: Record<string, number> = {
   banks: 150,
   categories: 200,
@@ -15,19 +15,6 @@ const ROW_SIZE_ESTIMATES: Record<string, number> = {
 
 export async function GET(request: NextRequest) {
   try {
-    const { createClient } = await import('@supabase/supabase-js');
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY necessária.' }, { status: 500 });
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
-
     const { searchParams } = new URL(request.url);
     const adminEmail = searchParams.get('adminEmail');
     const clientEmail = searchParams.get('clientEmail');
@@ -44,13 +31,9 @@ export async function GET(request: NextRequest) {
     let totalSizeMB = 0;
 
     if (clientEmail) {
-      const { data: userData, error: userError } = await supabaseAdmin
-        .from('users')
-        .select('id, email')
-        .eq('email', clientEmail)
-        .single();
+      const userData = await apiQueryOne('SELECT id, email FROM users WHERE email = $1', [clientEmail]);
 
-      if (userError || !userData) {
+      if (!userData) {
         return NextResponse.json({ error: 'Cliente não encontrado.' }, { status: 404 });
       }
 
@@ -59,17 +42,13 @@ export async function GET(request: NextRequest) {
       let clientSizeBytes = 0;
 
       for (const table of tables) {
-        const { count, error } = await supabaseAdmin
-          .from(table)
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', userData.id);
-
-        if (error) {
+        try {
+          const countResult = await apiQueryOne(`SELECT COUNT(*) as count FROM ${table} WHERE user_id = $1`, [userData.id]);
+          clientStats[table] = parseInt(countResult?.count || '0', 10);
+          clientSizeBytes += clientStats[table] * ROW_SIZE_ESTIMATES[table];
+        } catch (error) {
           console.error(`[DB-STATS] Erro ao contar ${table}:`, error);
           clientStats[table] = 0;
-        } else {
-          clientStats[table] = count || 0;
-          clientSizeBytes += (count || 0) * ROW_SIZE_ESTIMATES[table];
         }
         clientTotal += clientStats[table];
       }
@@ -78,35 +57,25 @@ export async function GET(request: NextRequest) {
       totalStats = clientStats;
       totalSizeMB = stats[0].sizeMB;
     } else {
-      const { data: users, error: usersError } = await supabaseAdmin
-        .from('users')
-        .select('id, email');
-
-      if (usersError) {
-        return NextResponse.json({ error: usersError.message }, { status: 500 });
-      }
+      const users = await apiQuery('SELECT id, email FROM users ORDER BY email');
 
       for (const table of tables) {
         totalStats[table] = 0;
       }
 
-      for (const u of users || []) {
+      for (const u of users) {
         const clientStats: Record<string, number> = {};
         let clientTotal = 0;
         let clientSizeBytes = 0;
 
         for (const table of tables) {
-          const { count, error } = await supabaseAdmin
-            .from(table)
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', u.id);
-
-          if (error) {
+          try {
+            const countResult = await apiQueryOne(`SELECT COUNT(*) as count FROM ${table} WHERE user_id = $1`, [u.id]);
+            clientStats[table] = parseInt(countResult?.count || '0', 10);
+            clientSizeBytes += clientStats[table] * ROW_SIZE_ESTIMATES[table];
+          } catch (error) {
             console.error(`[DB-STATS] Erro ao contar ${table}:`, error);
             clientStats[table] = 0;
-          } else {
-            clientStats[table] = count || 0;
-            clientSizeBytes += (count || 0) * ROW_SIZE_ESTIMATES[table];
           }
           clientTotal += clientStats[table];
           totalStats[table] = (totalStats[table] || 0) + clientStats[table];

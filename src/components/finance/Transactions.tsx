@@ -9,7 +9,7 @@ import { SearchableSelect } from './SearchableSelect';
 export function Transactions({ showNotification }: { showNotification: (msg: string, type: 'success' | 'error') => void }) {
   const { transactions, banks, categories, addTransaction, updateTransaction, deleteTransaction, updateBank, getBankName, getBankIcon, getCategoryName, getCategoryIcon, getBankBalance, exportToCSV, exportToJSON } = useFinance();
   
-  const [filters, setFilters] = useState({ bank: '', type: '', category: '', date: 'thisMonth' });
+  const [filters, setFilters] = useState({ bank: '', type: '', category: '', date: 'lastMonth' });
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], description: '', bank: '', type: 'debit' as const, category: '', value: '' });
@@ -22,7 +22,12 @@ export function Transactions({ showNotification }: { showNotification: (msg: str
   const descriptionRef = useRef<HTMLInputElement>(null);
 
   const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-  const fmtDate = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '';
+  const fmtDate = (d: string) => {
+    if (!d) return '';
+    const parts = d.split('-');
+    if (parts.length !== 3) return d;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  };
 
   const now = new Date();
   const thisMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;

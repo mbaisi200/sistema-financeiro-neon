@@ -137,10 +137,10 @@ export function getInvoiceMonth(
   dueDay: number | null | undefined,
   defaultDueDay: number = 10
 ): string {
-  const date = new Date(transactionDate + 'T00:00:00');
-  const year = date.getFullYear();
-  const month = date.getMonth();
-  const day = date.getDate();
+  const parts = transactionDate.split('-');
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
   
   const effectiveDueDay = dueDay ?? defaultDueDay;
   

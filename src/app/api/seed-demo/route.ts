@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ADMIN_EMAILS } from '@/lib/types';
+import { apiQuery, apiInsert, apiExecute } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
-// Dados de demonstração realistas para sistema financeiro
 const DEMO_BANKS = [
   { name: 'BANCO DO BRASIL', icon: '🏦', initial_balance: 5000 },
   { name: 'NUBANK', icon: '💜', initial_balance: 2500 },
@@ -66,7 +66,6 @@ const DEMO_CREDIT_CARDS = [
   { name: 'C6 CARBON', bank: 'C6 BANK', limit: 15000, icon: '⚫' },
 ];
 
-// Descrições de transações realistas
 const INCOME_DESCRIPTIONS = [
   'Salario Empresa XYZ',
   'Pagamento Freelance',
@@ -87,360 +86,172 @@ const INCOME_DESCRIPTIONS = [
 
 const EXPENSE_DESCRIPTIONS: Record<string, string[]> = {
   'ALIMENTACAO': [
-    'Restaurante Sabor Caseiro',
-    'Lanche Shopping',
-    'Pizza Hut',
-    'McDonalds',
-    'Habibs',
-    'Bobs',
-    'Spoleto',
-    'Giraffas',
-    'Subway',
-    'China in Box',
-    'Restaurante Japones',
-    'Churrascaria',
-    'Padaria Central',
-    'Cafe da Manha',
-    'Almoco Trabalho',
-    'Lanche Tarde',
-    'iFood',
-    'Rappi',
+    'Restaurante Sabor Caseiro', 'Lanche Shopping', 'Pizza Hut', 'McDonalds',
+    'Habibs', 'Bobs', 'Spoleto', 'Giraffas', 'Subway', 'China in Box',
+    'Restaurante Japones', 'Churrascaria', 'Padaria Central', 'Cafe da Manha',
+    'Almoco Trabalho', 'Lanche Tarde', 'iFood', 'Rappi',
   ],
   'MERCADO': [
-    'Carrefour',
-    'Extra',
-    'Pao de Acucar',
-    'Assai',
-    'Atakarejo',
-    'Minuto Pao de Acucar',
-    'Dia',
-    'Mercado Livre',
-    'Compras Mes',
-    'Hortifruti',
-    'Acougue',
-    'Supermercado',
-    'Compras Semanais',
+    'Carrefour', 'Extra', 'Pao de Acucar', 'Assai', 'Atakarejo',
+    'Minuto Pao de Acucar', 'Dia', 'Mercado Livre', 'Compras Mes',
+    'Hortifruti', 'Acougue', 'Supermercado', 'Compras Semanais',
   ],
   'TRANSPORTE': [
-    'Posto Shell',
-    'Posto Ipiranga',
-    'Posto Petrobras',
-    'Estacionamento',
-    'Pedagio',
-    'Lava Rapido',
-    'Troca Oleo',
-    'Revisao Carro',
-    'IPVA',
-    'Licenciamento',
-    'Pneus',
-    'Alinhamento',
+    'Posto Shell', 'Posto Ipiranga', 'Posto Petrobras', 'Estacionamento',
+    'Pedagio', 'Lava Rapido', 'Troca Oleo', 'Revisao Carro', 'IPVA',
+    'Licenciamento', 'Pneus', 'Alinhamento',
   ],
   'UBER/99': [
-    'Uber Casa-Trabalho',
-    '99 Pop',
-    'Uber Shopping',
-    'Uber Noite',
-    'Cabify',
-    'Uber Aeroporto',
+    'Uber Casa-Trabalho', '99 Pop', 'Uber Shopping', 'Uber Noite', 'Cabify', 'Uber Aeroporto',
   ],
   'MORADIA': [
-    'Aluguel Apartamento',
-    'Condominio',
-    'IPTU',
-    'Manutencao Predio',
-    'Reforma',
+    'Aluguel Apartamento', 'Condominio', 'IPTU', 'Manutencao Predio', 'Reforma',
   ],
   'ENERGIA': [
-    'Conta Luz',
-    'Energia Eletrica',
-    'Cemig',
-    'Light',
-    'Enel',
-    'Conta Energia',
+    'Conta Luz', 'Energia Eletrica', 'Cemig', 'Light', 'Enel', 'Conta Energia',
   ],
   'AGUA': [
-    'Conta Agua',
-    'Copasa',
-    'Sabesp',
-    'Saneamento',
+    'Conta Agua', 'Copasa', 'Sabesp', 'Saneamento',
   ],
   'INTERNET': [
-    'Vivo Fibra',
-    'Claro Net',
-    'Oi Fibra',
-    'Internet Mensal',
-    'Netflix',
+    'Vivo Fibra', 'Claro Net', 'Oi Fibra', 'Internet Mensal', 'Netflix',
   ],
   'TELEFONE': [
-    'Claro Celular',
-    'Vivo Celular',
-    'Tim',
-    'Oi',
-    'Recarga Celular',
+    'Claro Celular', 'Vivo Celular', 'Tim', 'Oi', 'Recarga Celular',
   ],
   'STREAMING': [
-    'Netflix',
-    'Amazon Prime',
-    'Disney+',
-    'HBO Max',
-    'Globoplay',
-    'YouTube Premium',
-    'Paramount+',
+    'Netflix', 'Amazon Prime', 'Disney+', 'HBO Max', 'Globoplay',
+    'YouTube Premium', 'Paramount+',
   ],
   'SPOTIFY': [
-    'Spotify Premium',
-    'Apple Music',
-    'Deezer',
-    'YouTube Music',
+    'Spotify Premium', 'Apple Music', 'Deezer', 'YouTube Music',
   ],
   'ACADEMIA': [
-    'Mensalidade Academia',
-    'Smart Fit',
-    'Body Tech',
-    'Fitness',
-    'Personal Trainer',
+    'Mensalidade Academia', 'Smart Fit', 'Body Tech', 'Fitness', 'Personal Trainer',
   ],
   'SAUDE': [
-    'Plano de Saude',
-    'Unimed',
-    'Amil',
-    'Bradesco Saude',
-    'Consulta Medica',
-    'Exames Laboratoriais',
-    'Dentista',
-    'Oftalmologista',
+    'Plano de Saude', 'Unimed', 'Amil', 'Bradesco Saude', 'Consulta Medica',
+    'Exames Laboratoriais', 'Dentista', 'Oftalmologista',
   ],
   'FARMACIA': [
-    'Drogasil',
-    'Pague Menos',
-    'Panvel',
-    'Raia',
-    'Sao Joao',
-    'Medicamentos',
-    'Vitaminas',
+    'Drogasil', 'Pague Menos', 'Panvel', 'Raia', 'Sao Joao', 'Medicamentos', 'Vitaminas',
   ],
   'EDUCACAO': [
-    'Mensalidade Faculdade',
-    'Material Escolar',
-    'Livros Didaticos',
-    'Escola Filhos',
-    'Uniforme',
+    'Mensalidade Faculdade', 'Material Escolar', 'Livros Didaticos', 'Escola Filhos', 'Uniforme',
   ],
   'CURSOS': [
-    'Udemy',
-    'Alura',
-    'Coursera',
-    'Curso Ingles',
-    'Pos Graduacao',
-    'MBA',
-    'Certificacao',
+    'Udemy', 'Alura', 'Coursera', 'Curso Ingles', 'Pos Graduacao', 'MBA', 'Certificacao',
   ],
   'LAZER': [
-    'Cinema',
-    'Teatro',
-    'Show',
-    'Parque',
-    'Bowling',
-    'Kart',
-    'Bar',
-    'Balada',
+    'Cinema', 'Teatro', 'Show', 'Parque', 'Bowling', 'Kart', 'Bar', 'Balada',
   ],
   'ROUPAS': [
-    'Renner',
-    'C&A',
-    'Riachuelo',
-    'Marisa',
-    'Zara',
-    'H&M',
-    'Calcadatos',
-    'Loja Roupas',
+    'Renner', 'C&A', 'Riachuelo', 'Marisa', 'Zara', 'H&M', 'Calcadatos', 'Loja Roupas',
   ],
   'PRESENTES': [
-    'Presente Aniversario',
-    'Presente Dia Namorados',
-    'Presente Mae',
-    'Presente Pai',
-    'Presente Natal',
-    'Presente Criancas',
+    'Presente Aniversario', 'Presente Dia Namorados', 'Presente Mae',
+    'Presente Pai', 'Presente Natal', 'Presente Criancas',
   ],
   'PET SHOP': [
-    'Racao Pet',
-    'Petshop',
-    'Veterinario',
-    'Banho Pet',
-    'Tosa',
-    'Brinquedos Pet',
+    'Racao Pet', 'Petshop', 'Veterinario', 'Banho Pet', 'Tosa', 'Brinquedos Pet',
   ],
   'VIAGEM': [
-    'Passagem Aerea',
-    'Hotel',
-    'Pousada',
-    'Resort',
-    'Aluguel Carro',
-    'Passeio Turistico',
-    'Pacote Viagem',
+    'Passagem Aerea', 'Hotel', 'Pousada', 'Resort', 'Aluguel Carro',
+    'Passeio Turistico', 'Pacote Viagem',
   ],
   'COSMETICOS': [
-    'Boticario',
-    'Quem Disse Berenice',
-    'Mac',
-    'Sephora',
-    'Perfumaria',
-    'Maquiagem',
+    'Boticario', 'Quem Disse Berenice', 'Mac', 'Sephora', 'Perfumaria', 'Maquiagem',
   ],
   'CABELEREIRO': [
-    'Corte Cabelo',
-    'Barbearia',
-    'Salao Beleza',
-    'Manicure',
-    'Pedicure',
-    'Coloracao',
+    'Corte Cabelo', 'Barbearia', 'Salao Beleza', 'Manicure', 'Pedicure', 'Coloracao',
   ],
   'GASOLINA': [
-    'Posto Shell',
-    'Posto Ipiranga',
-    'Posto Petrobras',
-    'Combustivel',
-    'Etanol',
-    'Gasolina Aditivada',
+    'Posto Shell', 'Posto Ipiranga', 'Posto Petrobras', 'Combustivel', 'Etanol', 'Gasolina Aditivada',
   ],
   'MANUTENCAO CARRO': [
-    'Oficina',
-    'Troca Oleo',
-    'Revisao',
-    'Freios',
-    'Suspensao',
-    'Ar Condicionado',
+    'Oficina', 'Troca Oleo', 'Revisao', 'Freios', 'Suspensao', 'Ar Condicionado',
   ],
   'CINEMA': [
-    'Cinemark',
-    'Kinoplex',
-    'Ingresso Cinema',
-    'Pipoca',
-    'Combo Cinema',
+    'Cinemark', 'Kinoplex', 'Ingresso Cinema', 'Pipoca', 'Combo Cinema',
   ],
   'LIVROS': [
-    'Livraria Cultura',
-    'Saraiva',
-    'Livros Amazon',
-    'Kindle',
-    'Livro Fisico',
+    'Livraria Cultura', 'Saraiva', 'Livros Amazon', 'Kindle', 'Livro Fisico',
   ],
   'IMPOSTOS': [
-    'IRPF',
-    'IPTU',
-    'IPVA',
-    'Taxas Municipais',
-    'Contribuicao',
+    'IRPF', 'IPTU', 'IPVA', 'Taxas Municipais', 'Contribuicao',
   ],
   'SEGURO': [
-    'Seguro Auto',
-    'Seguro Vida',
-    'Seguro Residencia',
-    'Seguro Saude',
+    'Seguro Auto', 'Seguro Vida', 'Seguro Residencia', 'Seguro Saude',
   ],
   'EMPRESTIMO': [
-    'Parcela Emprestimo',
-    'Financiamento',
-    'Consorcio',
-    'Credito Pessoal',
+    'Parcela Emprestimo', 'Financiamento', 'Consorcio', 'Credito Pessoal',
   ],
 };
 
-// Função para gerar data aleatória dentro de um período
 function randomDateInRange(startDate: string, endDate: string): string {
   const start = new Date(startDate);
   const end = new Date(endDate);
-
   const randomTime = start.getTime() + Math.random() * (end.getTime() - start.getTime());
   const randomDate = new Date(randomTime);
-
   return randomDate.toISOString().split('T')[0];
 }
 
-// Função para gerar valor aleatório dentro de um range
 function randomValue(min: number, max: number): number {
   return Math.round((Math.random() * (max - min) + min) * 100) / 100;
 }
 
-// Função para escolher item aleatório de um array
 function randomItem<T>(array: T[]): T {
   return array[Math.floor(Math.random() * array.length)];
 }
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('[SEED-DEMO] Iniciando população de dados...');
-
-    const { createClient } = await import('@supabase/supabase-js');
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY necessária.' }, { status: 500 });
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
+    console.log('[SEED-DEMO] Iniciando populacao de dados...');
 
     const { adminEmail, targetEmail, startDate, endDate, transactionCount } = await request.json();
 
-    // Verificar se é admin (case-insensitive)
     const adminEmailsLower = ADMIN_EMAILS.map(e => e.toLowerCase());
     if (!adminEmailsLower.includes((adminEmail || '').toLowerCase())) {
-      return NextResponse.json({ error: 'Não autorizado.' }, { status: 403 });
+      return NextResponse.json({ error: 'Nao autorizado.' }, { status: 403 });
     }
 
-    // Validar parâmetros
     const count = Math.min(Math.max(transactionCount || 200, 10), 1000);
     const start = startDate || new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const end = endDate || new Date().toISOString().split('T')[0];
 
-    console.log(`[SEED-DEMO] Período: ${start} a ${end}, Quantidade: ${count}`);
+    console.log(`[SEED-DEMO] Periodo: ${start} a ${end}, Quantidade: ${count}`);
 
-    // Buscar usuário alvo
-    const { data: users, error: userError } = await supabaseAdmin.auth.admin.listUsers();
+    // Buscar usuario alvo na tabela users
+    const targetUser = await apiQuery(
+      'SELECT * FROM users WHERE email ILIKE $1',
+      [targetEmail]
+    );
 
-    if (userError) {
-      return NextResponse.json({ error: 'Erro ao listar usuários: ' + userError.message }, { status: 500 });
+    if (!targetUser || targetUser.length === 0) {
+      return NextResponse.json({ error: `Usuario ${targetEmail} nao encontrado.` }, { status: 404 });
     }
 
-    const targetUser = users.users.find(u => u.email?.toLowerCase() === targetEmail?.toLowerCase());
+    const userId = targetUser[0].id;
+    console.log(`[SEED-DEMO] Usuario alvo: ${targetUser[0].email} (${userId})`);
 
-    if (!targetUser) {
-      return NextResponse.json({ error: `Usuário ${targetEmail} não encontrado no Auth.` }, { status: 404 });
-    }
-
-    console.log(`[SEED-DEMO] Usuário alvo: ${targetUser.email} (${targetUser.id})`);
-
-    // Limpar dados existentes do usuário
+    // Limpar dados existentes do usuario
     console.log('[SEED-DEMO] Limpando dados existentes...');
-
-    await supabaseAdmin.from('credit_card_transactions').delete().eq('user_id', targetUser.id);
-    await supabaseAdmin.from('transactions').delete().eq('user_id', targetUser.id);
-    await supabaseAdmin.from('credit_cards').delete().eq('user_id', targetUser.id);
-    await supabaseAdmin.from('categories').delete().eq('user_id', targetUser.id);
-    await supabaseAdmin.from('banks').delete().eq('user_id', targetUser.id);
+    await apiExecute('DELETE FROM credit_card_transactions WHERE user_id = $1', [userId]);
+    await apiExecute('DELETE FROM transactions WHERE user_id = $1', [userId]);
+    await apiExecute('DELETE FROM credit_cards WHERE user_id = $1', [userId]);
+    await apiExecute('DELETE FROM categories WHERE user_id = $1', [userId]);
+    await apiExecute('DELETE FROM banks WHERE user_id = $1', [userId]);
 
     // 1. Criar Bancos
     console.log('[SEED-DEMO] Criando bancos...');
     const banksMap: Record<string, string> = {};
 
     for (const bank of DEMO_BANKS) {
-      const { data, error } = await supabaseAdmin
-        .from('banks')
-        .insert({
-          user_id: targetUser.id,
-          name: bank.name,
-          icon: bank.icon,
-          initial_balance: bank.initial_balance
-        })
-        .select('id')
-        .single();
-
-      if (!error && data) {
+      const data = await apiInsert(
+        'INSERT INTO banks (user_id, name, icon, initial_balance) VALUES ($1, $2, $3, $4) RETURNING *',
+        [userId, bank.name, bank.icon, bank.initial_balance]
+      );
+      if (data) {
         banksMap[bank.name] = data.id;
       }
     }
@@ -452,49 +263,35 @@ export async function POST(request: NextRequest) {
     const categoriesMap: Record<string, string> = {};
 
     for (const cat of DEMO_CATEGORIES) {
-      const { data, error } = await supabaseAdmin
-        .from('categories')
-        .insert({
-          user_id: targetUser.id,
-          name: cat.name,
-          icon: cat.icon
-        })
-        .select('id')
-        .single();
-
-      if (!error && data) {
+      const data = await apiInsert(
+        'INSERT INTO categories (user_id, name, icon) VALUES ($1, $2, $3) RETURNING *',
+        [userId, cat.name, cat.icon]
+      );
+      if (data) {
         categoriesMap[cat.name] = data.id;
       }
     }
 
     console.log(`[SEED-DEMO] ${Object.keys(categoriesMap).length} categorias criadas`);
 
-    // 3. Criar Cartões de Crédito
-    console.log('[SEED-DEMO] Criando cartões de crédito...');
+    // 3. Criar Cartoes de Credito
+    console.log('[SEED-DEMO] Criando cartoes de credito...');
     const cardsMap: Record<string, string> = {};
 
     for (const card of DEMO_CREDIT_CARDS) {
-      const { data, error } = await supabaseAdmin
-        .from('credit_cards')
-        .insert({
-          user_id: targetUser.id,
-          name: card.name,
-          bank: card.bank,
-          credit_limit: card.limit,
-          icon: card.icon
-        })
-        .select('id')
-        .single();
-
-      if (!error && data) {
+      const data = await apiInsert(
+        'INSERT INTO credit_cards (user_id, name, bank, credit_limit, icon) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [userId, card.name, card.bank, card.limit, card.icon]
+      );
+      if (data) {
         cardsMap[card.name] = data.id;
       }
     }
 
-    console.log(`[SEED-DEMO] ${Object.keys(cardsMap).length} cartões criados`);
+    console.log(`[SEED-DEMO] ${Object.keys(cardsMap).length} cartoes criados`);
 
-    // 4. Criar Transações
-    console.log(`[SEED-DEMO] Criando ${count} transações...`);
+    // 4. Criar Transacoes
+    console.log(`[SEED-DEMO] Criando ${count} transacoes...`);
     let bankTransactions = 0;
     let ccTransactions = 0;
 
@@ -504,13 +301,11 @@ export async function POST(request: NextRequest) {
     const incomeCategories = ['SALARIO', 'FREELA', 'INVESTIMENTOS'];
     const mainBanks = ['BANCO DO BRASIL', 'NUBANK', 'ITAU'];
 
-    // Calcular quantas transações de cada tipo
-    // Aproximadamente 15% de receitas, 55% despesas banco, 30% cartão
     const incomeCount = Math.floor(count * 0.15);
     const bankExpenseCount = Math.floor(count * 0.55);
     const cardExpenseCount = count - incomeCount - bankExpenseCount;
 
-    // Criar transações de receita (salários, freelas, etc.)
+    // Transacoes de receita
     for (let i = 0; i < incomeCount; i++) {
       const category = randomItem(incomeCategories);
       const bankName = randomItem(mainBanks);
@@ -527,22 +322,18 @@ export async function POST(request: NextRequest) {
         value = randomValue(50, 800);
       }
 
-      const { error } = await supabaseAdmin
-        .from('transactions')
-        .insert({
-          user_id: targetUser.id,
-          date: randomDateInRange(start, end),
-          description: randomItem(INCOME_DESCRIPTIONS),
-          bank: bankId,
-          type: 'credit',
-          category: categoriesMap[category],
-          value: value
-        });
-
-      if (!error) bankTransactions++;
+      try {
+        await apiExecute(
+          'INSERT INTO transactions (user_id, date, description, bank, type, category, value) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+          [userId, randomDateInRange(start, end), randomItem(INCOME_DESCRIPTIONS), bankId, 'credit', categoriesMap[category], value]
+        );
+        bankTransactions++;
+      } catch (e) {
+        // skip on error
+      }
     }
 
-    // Criar transações de despesa em banco
+    // Transacoes de despesa em banco
     for (let i = 0; i < bankExpenseCount; i++) {
       const category = randomItem(expenseCategories);
       const bankId = randomItem(bankIds);
@@ -552,7 +343,6 @@ export async function POST(request: NextRequest) {
       const descriptions = EXPENSE_DESCRIPTIONS[category] || [category];
       let value: number;
 
-      // Definir ranges de valor por categoria
       if (['ALUGUEL', 'MORADIA'].includes(category)) {
         value = randomValue(1200, 2800);
       } else if (['SAUDE'].includes(category)) {
@@ -593,22 +383,18 @@ export async function POST(request: NextRequest) {
         value = randomValue(25, 220);
       }
 
-      const { error } = await supabaseAdmin
-        .from('transactions')
-        .insert({
-          user_id: targetUser.id,
-          date: randomDateInRange(start, end),
-          description: randomItem(descriptions),
-          bank: bankId,
-          type: 'debit',
-          category: categoriesMap[category],
-          value: value
-        });
-
-      if (!error) bankTransactions++;
+      try {
+        await apiExecute(
+          'INSERT INTO transactions (user_id, date, description, bank, type, category, value) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+          [userId, randomDateInRange(start, end), randomItem(descriptions), bankId, 'debit', categoriesMap[category], value]
+        );
+        bankTransactions++;
+      } catch (e) {
+        // skip on error
+      }
     }
 
-    // Criar transações de cartão de crédito
+    // Transacoes de cartao de credito
     for (let i = 0; i < cardExpenseCount; i++) {
       const category = randomItem(expenseCategories);
       const cardId = randomItem(cardIds);
@@ -618,7 +404,6 @@ export async function POST(request: NextRequest) {
       const descriptions = EXPENSE_DESCRIPTIONS[category] || [category];
       let value: number;
 
-      // Cartão geralmente tem gastos menores
       if (['ALIMENTACAO', 'RESTAURANTE'].includes(category)) {
         value = randomValue(30, 150);
       } else if (['MERCADO'].includes(category)) {
@@ -641,22 +426,18 @@ export async function POST(request: NextRequest) {
         value = randomValue(30, 180);
       }
 
-      const { error } = await supabaseAdmin
-        .from('credit_card_transactions')
-        .insert({
-          user_id: targetUser.id,
-          date: randomDateInRange(start, end),
-          description: randomItem(descriptions),
-          card: cardId,
-          category: categoriesMap[category],
-          value: value,
-          is_payment: false
-        });
-
-      if (!error) ccTransactions++;
+      try {
+        await apiExecute(
+          'INSERT INTO credit_card_transactions (user_id, date, description, card, category, value, is_payment) VALUES ($1, $2, $3, $4, $5, $6, false)',
+          [userId, randomDateInRange(start, end), randomItem(descriptions), cardId, categoriesMap[category], value]
+        );
+        ccTransactions++;
+      } catch (e) {
+        // skip on error
+      }
     }
 
-    // Adicionar alguns pagamentos de fatura
+    // Pagamentos de fatura
     const paymentCount = Math.floor(count / 25);
     for (let i = 0; i < paymentCount; i++) {
       const bankId = randomItem(bankIds);
@@ -666,47 +447,35 @@ export async function POST(request: NextRequest) {
 
       const paymentValue = randomValue(500, 2000);
 
-      // Pagamento de fatura (débito no banco)
-      await supabaseAdmin
-        .from('transactions')
-        .insert({
-          user_id: targetUser.id,
-          date: randomDateInRange(start, end),
-          description: 'Pagamento Fatura Cartao',
-          bank: bankId,
-          type: 'debit',
-          category: categoriesMap['PAGAMENTO CARTAO'],
-          value: paymentValue
-        });
+      try {
+        await apiExecute(
+          'INSERT INTO transactions (user_id, date, description, bank, type, category, value) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+          [userId, randomDateInRange(start, end), 'Pagamento Fatura Cartao', bankId, 'debit', categoriesMap['PAGAMENTO CARTAO'], paymentValue]
+        );
 
-      // Pagamento de fatura (crédito no cartão)
-      await supabaseAdmin
-        .from('credit_card_transactions')
-        .insert({
-          user_id: targetUser.id,
-          date: randomDateInRange(start, end),
-          description: 'Pagamento Fatura',
-          card: cardId,
-          category: categoriesMap['PAGAMENTO CARTAO'],
-          value: -paymentValue,
-          is_payment: true
-        });
+        await apiExecute(
+          'INSERT INTO credit_card_transactions (user_id, date, description, card, category, value, is_payment) VALUES ($1, $2, $3, $4, $5, $6, true)',
+          [userId, randomDateInRange(start, end), 'Pagamento Fatura', cardId, categoriesMap['PAGAMENTO CARTAO'], -paymentValue]
+        );
 
-      bankTransactions++;
-      ccTransactions++;
+        bankTransactions++;
+        ccTransactions++;
+      } catch (e) {
+        // skip on error
+      }
     }
 
-    console.log(`[SEED-DEMO] ${bankTransactions} transações bancárias criadas`);
-    console.log(`[SEED-DEMO] ${ccTransactions} transações de cartão criadas`);
+    console.log(`[SEED-DEMO] ${bankTransactions} transacoes bancarias criadas`);
+    console.log(`[SEED-DEMO] ${ccTransactions} transacoes de cartao criadas`);
 
     return NextResponse.json({
       success: true,
-      message: 'Dados de demonstração criados com sucesso!',
+      message: 'Dados de demonstracao criados com sucesso!',
       summary: {
         banks: Object.keys(banksMap).length,
         categories: Object.keys(categoriesMap).length,
         creditCards: Object.keys(cardsMap).length,
-        bankTransactions: bankTransactions,
+        bankTransactions,
         creditCardTransactions: ccTransactions,
         totalRecords: Object.keys(banksMap).length + Object.keys(categoriesMap).length + Object.keys(cardsMap).length + bankTransactions + ccTransactions,
         period: { start, end }

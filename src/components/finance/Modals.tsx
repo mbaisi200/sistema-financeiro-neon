@@ -120,8 +120,9 @@ export function EditTransactionModal({
 
   React.useEffect(() => {
     if (transaction) {
+      const dateStr = transaction.date.includes('T') ? transaction.date.split('T')[0] : transaction.date;
       setForm({
-        date: transaction.date,
+        date: dateStr,
         description: transaction.description,
         bank: transaction.bank,
         type: transaction.type,

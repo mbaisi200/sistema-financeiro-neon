@@ -17,7 +17,7 @@ interface CategoryReport {
 export function Dashboard() {
   const { transactions, banks, creditCardTransactions, categories, creditCards, scheduledTransactions, getBankBalance, getBankName, getBankIcon, getCategoryName, getCategoryIcon, getCardName, getCardIcon, getCardTotalDebt } = useFinance();
   const [filterBank, setFilterBank] = useState('');
-  const [filterPeriod, setFilterPeriod] = useState('thisMonth');
+  const [filterPeriod, setFilterPeriod] = useState('lastMonth');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [categoryReport, setCategoryReport] = useState<CategoryReport | null>(null);
@@ -29,7 +29,12 @@ export function Dashboard() {
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
 
    const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-   const fmtDate = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '';
+   const fmtDate = (d: string) => {
+     if (!d) return '';
+     const parts = d.split('-');
+     if (parts.length !== 3) return d;
+     return `${parts[2]}/${parts[1]}/${parts[0]}`;
+   };
 
    const toLocalDateStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -75,11 +80,11 @@ export function Dashboard() {
     return dateStr >= periodRange.start && dateStr <= periodRange.end;
   };
 
-  // Filter transactions
-  const monthTx = transactions.filter(t => {
-    if (filterBank && t.bank !== filterBank) return false;
-    return isInPeriod(t.date);
-  });
+   // Filter transactions
+   const monthTx = transactions.filter(t => {
+     if (filterBank && t.bank !== filterBank) return false;
+     return isInPeriod(t.date);
+   });
 
   // ========================================
   // FILTRAR LANÇAMENTOS FUTUROS/AGENDADOS
@@ -146,8 +151,6 @@ export function Dashboard() {
     cartoes: scheduledCardExpenses.length,
     pagamentosCartao: scheduledCardPayments.length
   };
-  console.log('Lançamentos agendados:', scheduledDebug);
-
   // Valores de lançamentos agendados
   const scheduledDebitExpensesTotal = scheduledDebitExpenses.reduce((s, t) => s + t.value, 0);
   const scheduledCreditIncomeTotal = scheduledCreditIncome.reduce((s, t) => s + t.value, 0);

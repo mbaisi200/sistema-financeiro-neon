@@ -1,8 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
-import { User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { authClient } from '@/lib/auth/client';
+import { dbSelectOne, dbInsert, dbExecute } from '@/lib/db-helpers';
 import { Bank, Category, CreditCard, Transaction, CreditCardTransaction, ScheduledTransaction, DEFAULT_BANKS, DEFAULT_CATEGORIES, ADMIN_EMAILS } from '@/lib/types';
 
 export interface DescriptionMapping {
@@ -11,8 +11,13 @@ export interface DescriptionMapping {
   usageCount: number;
 }
 
+interface AuthUser {
+  id: string;
+  email: string;
+}
+
 interface FinanceContextType {
-   user: User | null;
+   user: AuthUser | null;
    loading: boolean;
    isOnline: boolean;
    isExpired: boolean;
@@ -66,12 +71,12 @@ interface FinanceContextType {
    exportToJSON: () => string;
    saveDescriptionMapping: (description: string, categoryId: string) => Promise<void>;
    getCategoryForDescription: (description: string) => string | undefined;
- }
+}
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(true);
   const [isExpired, setIsExpired] = useState(false);
@@ -82,51 +87,50 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [creditCardTransactions, setCreditCardTransactions] = useState<CreditCardTransaction[]>([]);
    const [scheduledTransactions, setScheduledTransactions] = useState<ScheduledTransaction[]>([]);
+
+   const normalizeDate = (d: string): string => {
+     if (!d) return d;
+     if (d.includes('T')) return d.split('T')[0];
+     return d;
+   };
    const [scheduledTransactionsTableExists, setScheduledTransactionsTableExists] = useState<boolean>(true);
    const [descriptionMappings, setDescriptionMappings] = useState<Map<string, string>>(new Map());
    const [descriptionMappingsTableExists, setDescriptionMappingsTableExists] = useState<boolean>(true);
-   
-   // Refs para evitar loops
-  const initializingRef = useRef(false);
-  const lastUserIdRef = useRef<string | null>(null);
-  const lastEventRef = useRef<string | null>(null); // Rastrear último evento para evitar duplicados
+
+   const initializingRef = useRef(false);
+   const lastUserIdRef = useRef<string | null>(null);
 
   // Verificar expiração da conta
   const checkExpiration = useCallback(async (uid: string) => {
     try {
-      const { data: userData, error } = await supabase
-        .from('users')
-        .select('expires_at, email')
-        .eq('id', uid)
-        .single();
+      const userData = await dbSelectOne<{ expires_at: string | null; email: string }>(
+        'SELECT expires_at, email FROM users WHERE id = $1',
+        [uid]
+      );
 
-      if (error) {
-        console.error('Erro ao verificar expiração:', error);
+      if (!userData) {
         setIsExpired(false);
         return false;
       }
 
-      if (userData) {
-        const expirationDate = userData.expires_at;
-        setExpiresAt(expirationDate || null);
-        
-        // Admin nunca expira
-        if (ADMIN_EMAILS.map(e => e.toLowerCase()).includes((userData.email || '').toLowerCase())) {
-          setIsExpired(false);
-          return false;
-        }
-        
-        if (expirationDate) {
-          const expDate = new Date(expirationDate);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          expDate.setHours(0, 0, 0, 0);
-          
-          const expired = today > expDate;
-          setIsExpired(expired);
-          return expired;
-        }
+      setExpiresAt(userData.expires_at);
+
+      // Admin nunca expira
+      if (ADMIN_EMAILS.map(e => e.toLowerCase()).includes((userData.email || '').toLowerCase())) {
+        setIsExpired(false);
+        return false;
       }
+
+      if (userData.expires_at) {
+        const expDate = new Date(userData.expires_at);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        expDate.setHours(0, 0, 0, 0);
+        const expired = today > expDate;
+        setIsExpired(expired);
+        return expired;
+      }
+
       setIsExpired(false);
       return false;
     } catch (error) {
@@ -136,312 +140,206 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Carregar dados do usuário
-  const loadUserData = useCallback(async (uid: string) => {
-    try {
-      // Carregar bancos
-      const { data: banksData } = await supabase
-        .from('banks')
-        .select('*')
-        .eq('user_id', uid);
-      
-      if (banksData) {
-        setBanks(banksData.map(b => ({
-          id: b.id,
-          name: b.name,
-          icon: b.icon,
-          initialBalance: b.initial_balance
-        })));
-      }
+   // Carregar dados do usuário
+   const loadUserData = useCallback(async (uid: string) => {
+     try {
+       const res = await fetch('/api/user-data', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ userId: uid }),
+       });
+        console.log('[FINANCE] user-data response status:', res.status);
+        const data = await res.json();
+        console.log('[FINANCE] user-data response:', JSON.stringify(data).substring(0, 200));
+        if (!res.ok) throw new Error(data.error || 'Falha ao carregar dados');
 
-      // Carregar categorias
-      const { data: categoriesData } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('user_id', uid);
-      
-      if (categoriesData) {
-        const cats = categoriesData.map(c => ({
-          id: c.id,
-          name: c.name,
-          icon: c.icon
-        }));
-        setCategories(cats.sort((a, b) => a.name.localeCompare(b.name)));
-      }
+        setBanks((data.banks || []).map((b: any) => ({
+         id: b.id,
+         name: b.name,
+         icon: b.icon,
+         initialBalance: parseFloat(b.initial_balance)
+       })));
 
-      // Carregar cartões de crédito
-      const { data: cardsData } = await supabase
-        .from('credit_cards')
-        .select('*')
-        .eq('user_id', uid);
-      
-      if (cardsData) {
-        setCreditCards(cardsData.map(c => ({
-          id: c.id,
-          name: c.name,
-          bank: c.bank || '',
-          limit: c.credit_limit,
-          icon: c.icon
-        })));
-      }
+       setCategories((data.categories || []).map((c: any) => ({
+         id: c.id,
+         name: c.name,
+         icon: c.icon
+       })).sort((a: any, b: any) => a.name.localeCompare(b.name)));
 
-      // Carregar transações
-      const { data: transactionsData } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', uid)
-        .order('created_at', { ascending: false });
-      
-      if (transactionsData) {
-        setTransactions(transactionsData.map(t => ({
+       setCreditCards((data.creditCards || []).map((c: any) => ({
+         id: c.id,
+         name: c.name,
+         bank: c.bank || '',
+         limit: parseFloat(c.credit_limit),
+         icon: c.icon
+       })));
+
+        setTransactions((data.transactions || []).map((t: any) => ({
           id: t.id,
-          date: t.date,
+          date: normalizeDate(t.date),
           description: t.description,
           bank: t.bank,
           type: t.type,
           category: t.category,
-          value: t.value
+          value: parseFloat(t.value)
         })));
-      }
 
-      // Carregar transações de cartão
-      const { data: ccTransactionsData } = await supabase
-        .from('credit_card_transactions')
-        .select('*')
-        .eq('user_id', uid)
-        .order('created_at', { ascending: false });
-      
-      if (ccTransactionsData) {
-        setCreditCardTransactions(ccTransactionsData.map(t => ({
+        setCreditCardTransactions((data.creditCardTransactions || []).map((t: any) => ({
           id: t.id,
-          date: t.date,
+          date: normalizeDate(t.date),
           description: t.description,
           card: t.card,
           category: t.category,
-          value: t.value,
+          value: parseFloat(t.value),
           isPayment: t.is_payment,
           invoice_month: t.invoice_month
         })));
-      }
 
-       // Carregar lançamentos futuros
-       const { data: scheduledData, error: scheduledError } = await supabase
-         .from('scheduled_transactions')
-         .select('*')
-         .eq('user_id', uid)
-         .order('due_date', { ascending: true });
-       
-       if (scheduledError) {
-         if (scheduledError.message.includes('does not exist') || scheduledError.message.includes('relation')) {
-           setScheduledTransactionsTableExists(false);
-           setScheduledTransactions([]);
-         } else {
-           console.error('Erro ao carregar lançamentos futuros:', scheduledError);
-         }
-       } else if (scheduledData) {
-         setScheduledTransactionsTableExists(true);
-         setScheduledTransactions(scheduledData.map(t => ({
-           id: t.id,
-           description: t.description,
-           type: t.type,
-           transactionType: t.transaction_type || 'debit',
-           value: parseFloat(t.value),
-           totalInstallments: t.total_installments,
-           currentInstallment: t.current_installment,
-           dueDate: t.due_date,
-           category: t.category || '',
-           bank: t.bank || '',
-           card: t.card || '',
-           isPaid: t.is_paid,
-           autoConfirm: t.auto_confirm,
-           status: t.status
-         })));
-       }
+       setScheduledTransactionsTableExists(true);
+       setScheduledTransactions((data.scheduledTransactions || []).map((t: any) => ({
+         id: t.id,
+         description: t.description,
+         type: t.type,
+         transactionType: t.transaction_type || 'debit',
+         value: parseFloat(t.value),
+          totalInstallments: parseFloat(t.total_installments),
+          currentInstallment: parseFloat(t.current_installment),
+         dueDate: t.due_date,
+         category: t.category || '',
+         bank: t.bank || '',
+         card: t.card || '',
+         isPaid: t.is_paid,
+         autoConfirm: t.auto_confirm,
+         status: t.status
+       })));
 
-       // Carregar mapeamentos de descrição -> categoria
-       const { data: mappingsData, error: mappingsError } = await supabase
-         .from('description_category_mappings')
-         .select('*')
-         .eq('user_id', uid)
-         .order('usage_count', { ascending: false });
-       
-       if (mappingsError) {
-         if (mappingsError.message.includes('does not exist') || mappingsError.message.includes('relation')) {
-           console.log('⚠️ Tabela description_category_mappings ainda não existe');
-           setDescriptionMappingsTableExists(false);
-           setDescriptionMappings(new Map());
-         } else {
-           console.error('Erro ao carregar mapeamentos:', mappingsError);
-         }
-       } else if (mappingsData) {
-         setDescriptionMappingsTableExists(true);
-         const mappings = new Map<string, string>();
-         mappingsData.forEach(m => {
-           mappings.set(m.description.toUpperCase(), m.category_id);
-         });
-         console.log(`📋 Carregados ${mappings.size} mapeamentos de descrição -> categoria`);
-         setDescriptionMappings(mappings);
-       }
-     } catch (error) {
-       console.error('Erro ao carregar dados:', error);
+       setDescriptionMappingsTableExists(true);
+       const mappings = new Map<string, string>();
+       (data.descriptionMappings || []).forEach((m: any) => {
+         mappings.set(m.description.toUpperCase(), m.category_id);
+       });
+        setDescriptionMappings(mappings);
+        console.log('[FINANCE] loadUserData concluída, banks:', data.banks?.length, 'tx:', data.transactions?.length, 'scheduled:', data.scheduledTransactions?.length);
+      } catch (error) {
+        console.error('[FINANCE] Erro ao carregar dados:', error);
      }
    }, []);
 
   // Inicializar dados padrão para novo usuário
   const initDefaultData = async (uid: string) => {
-    const { data: existingBanks } = await supabase
-      .from('banks')
-      .select('id')
-      .eq('user_id', uid);
-    
-    if (existingBanks && existingBanks.length > 0) return;
+    const existingBanks = await dbSelect<{ id: string }>(
+      'SELECT id FROM banks WHERE user_id = $1 LIMIT 1',
+      [uid]
+    );
 
-    for (const [id, bank] of Object.entries(DEFAULT_BANKS)) {
-      await supabase.from('banks').insert({
-        user_id: uid,
-        name: bank.name,
-        icon: bank.icon,
-        initial_balance: bank.initialBalance
-      });
+    if (existingBanks.length > 0) return;
+
+    for (const [, bank] of Object.entries(DEFAULT_BANKS)) {
+      await dbInsert(
+        'INSERT INTO banks (user_id, name, icon, initial_balance) VALUES ($1, $2, $3, $4)',
+        [uid, bank.name, bank.icon, bank.initialBalance]
+      );
     }
-    
-    for (const [id, cat] of Object.entries(DEFAULT_CATEGORIES)) {
-      await supabase.from('categories').insert({
-        user_id: uid,
-        name: cat.name,
-        icon: cat.icon
-      });
+
+    for (const [, cat] of Object.entries(DEFAULT_CATEGORIES)) {
+      await dbInsert(
+        'INSERT INTO categories (user_id, name, icon) VALUES ($1, $2, $3)',
+        [uid, cat.name, cat.icon]
+      );
     }
   };
 
-  // Auth state listener - CORRIGIDO PARA EVITAR LOOPS
+  // Auth state listener - using Neon Auth
   useEffect(() => {
-    let mounted = true;
-
     const initAuth = async () => {
-      // Evitar inicialização duplicada
       if (initializingRef.current) return;
       initializingRef.current = true;
 
       try {
-        // Verificar sessão atual
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (!mounted) return;
-
-        if (error) {
-          console.error('Erro ao obter sessão:', error);
-          setUser(null);
-          setLoading(false);
-          return;
-        }
-
-        setUser(session?.user ?? null);
+        // Obter sessão do Neon Auth
+        const { data: session } = await authClient.getSession();
 
         if (session?.user) {
+          const authUser: AuthUser = {
+            id: session.user.id,
+            email: session.user.email || session.user.name || ''
+          };
+          setUser(authUser);
           lastUserIdRef.current = session.user.id;
+
+          // Verificar se usuário existe na tabela users
+          const existingUser = await dbSelectOne<{ id: string }>(
+            'SELECT id FROM users WHERE id = $1',
+            [session.user.id]
+          );
+
+          if (!existingUser) {
+            // Verificar se já existe registro com este email (migrado do Supabase)
+            const existingByEmail = await dbSelectOne<{ id: string }>(
+              'SELECT id FROM users WHERE email = $1',
+              [authUser.email]
+            );
+
+            if (existingByEmail) {
+              const oldId = existingByEmail.id;
+              const newId = session.user.id;
+
+              // Atualizar id na tabela users
+              await dbExecute('UPDATE users SET id = $1 WHERE id = $2', [newId, oldId]);
+
+              // Migrar dados das outras tabelas para o novo id
+              const tables = ['banks', 'categories', 'credit_cards', 'transactions', 'credit_card_transactions', 'description_category_mappings', 'scheduled_transactions'];
+              for (const table of tables) {
+                await dbExecute(
+                  `UPDATE ${table} SET user_id = $1 WHERE user_id = $2`,
+                  [newId, oldId]
+                ).catch(() => {});
+              }
+            } else {
+              // Novo usuário - criar registro
+              await dbInsert(
+                'INSERT INTO users (id, email) VALUES ($1, $2)',
+                [session.user.id, authUser.email]
+              );
+              await initDefaultData(session.user.id);
+            }
+          }
+
           await checkExpiration(session.user.id);
-          await loadUserData(session.user.id);
+          await loadUserData(session.user.id).catch(err => {
+            console.error('[FINANCE] Erro ao carregar dados:', err);
+          });
+        } else {
+          setUser(null);
+          setBanks([]);
+          setCategories([]);
+          setCreditCards([]);
+          setTransactions([]);
+          setCreditCardTransactions([]);
+          setScheduledTransactions([]);
+          setIsExpired(false);
+          setExpiresAt(null);
         }
-        
-        setLoading(false);
       } catch (err) {
         console.error('Erro na inicialização:', err);
-        if (mounted) {
-          setUser(null);
-          setLoading(false);
-        }
+        setUser(null);
       } finally {
-        // CRÍTICO: Permitir reinicialização após conclusão
+        setLoading(false);
         initializingRef.current = false;
       }
     };
 
     initAuth();
-
-    // Escutar mudanças de auth
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-
-      const newUserId = session?.user?.id || null;
-      
-      // Ignorar TOKEN_REFRESHED - não precisa recarregar dados
-      if (event === 'TOKEN_REFRESHED') {
-        return;
-      }
-      
-      // Ignorar INITIAL_SESSION - já foi processado no initAuth()
-      if (event === 'INITIAL_SESSION') {
-        return;
-      }
-      
-      // Evitar processar o mesmo evento/usuário múltiplas vezes em sequência
-      const eventKey = `${event}-${newUserId}`;
-      if (lastEventRef.current === eventKey) {
-        return;
-      }
-      lastEventRef.current = eventKey;
-      
-      lastUserIdRef.current = newUserId;
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        // Criar registro na tabela users se não existir
-        if (event === 'SIGNED_IN') {
-          try {
-            const { data: existingUser } = await supabase
-              .from('users')
-              .select('id')
-              .eq('id', session.user.id)
-              .single();
-            
-            if (!existingUser) {
-              await supabase.from('users').insert({
-                id: session.user.id,
-                email: session.user.email!
-              });
-              await initDefaultData(session.user.id);
-            }
-          } catch (err) {
-            console.error('Erro ao verificar usuário:', err);
-          }
-        }
-        
-        await checkExpiration(session.user.id);
-        await loadUserData(session.user.id);
-      } else {
-        setIsExpired(false);
-        setExpiresAt(null);
-        setBanks([]);
-        setCategories([]);
-        setCreditCards([]);
-        setTransactions([]);
-        setCreditCardTransactions([]);
-        setScheduledTransactions([]);
-        setScheduledTransactionsTableExists(true);
-      }
-      
-      setLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      initializingRef.current = false;
-      lastEventRef.current = null;
-      subscription.unsubscribe();
-    };
   }, [checkExpiration, loadUserData]);
 
   // Online status
   useEffect(() => {
-    let mounted = true;
-    
     const checkConnection = async () => {
       try {
-        const { error } = await supabase.from('banks').select('id').limit(1);
-        if (mounted) setIsOnline(!error);
+        const { dbTestConnection } = await import('@/lib/db-helpers');
+        setIsOnline(await dbTestConnection());
       } catch {
-        if (mounted) setIsOnline(false);
+        setIsOnline(false);
       }
     };
 
@@ -450,111 +348,78 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     const handleOnline = () => checkConnection();
     const handleOffline = () => setIsOnline(false);
-    
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    
+
     return () => {
-      mounted = false;
       clearInterval(interval);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
-  // Auth functions
+  // Auth functions - Neon Auth
   const login = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+    const { error } = await authClient.signIn.email({
+      email,
+      password
+    });
+    if (error) throw new Error(error.message || 'Erro ao fazer login');
+    // Recarregar página para atualizar estado
+    window.location.reload();
   };
 
   const register = async (email: string, password: string) => {
-    const normalizedEmail = email.toLowerCase().trim();
-    
-    const { data: pendingData } = await supabase
-      .from('pending_users')
-      .select('*')
-      .eq('email', normalizedEmail)
-      .single();
-
-    const { data, error } = await supabase.auth.signUp({ 
-      email: normalizedEmail, 
-      password 
+    const { error } = await authClient.signUp.email({
+      email,
+      password,
+      name: email.split('@')[0]
     });
-    
-    if (error) throw error;
-    
-    if (data.user) {
-      if (pendingData) {
-        await supabase.from('users').insert({
-          id: data.user.id,
-          email: normalizedEmail,
-          created_by: pendingData.created_by,
-          expires_at: pendingData.expires_at
-        });
-
-        const defaultBanks = pendingData.default_banks as Record<string, { icon: string; name: string; initialBalance: number }> || DEFAULT_BANKS;
-        const defaultCategories = pendingData.default_categories as Record<string, { icon: string; name: string }> || DEFAULT_CATEGORIES;
-
-        for (const bank of Object.values(defaultBanks)) {
-          await supabase.from('banks').insert({
-            user_id: data.user.id,
-            name: bank.name,
-            icon: bank.icon,
-            initial_balance: bank.initialBalance
-          });
-        }
-        for (const cat of Object.values(defaultCategories)) {
-          await supabase.from('categories').insert({
-            user_id: data.user.id,
-            name: cat.name,
-            icon: cat.icon
-          });
-        }
-
-        await supabase.from('pending_users').delete().eq('email', normalizedEmail);
-      }
-    }
+    if (error) throw new Error(error.message || 'Erro ao criar conta');
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    await authClient.signOut();
+    window.location.reload();
   };
 
   const changePassword = async (newPassword: string) => {
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) throw error;
+    // Neon Auth pode não ter essa função diretamente
+    // Por enquanto, apenas informar o usuário
+    throw new Error('Use o painel do Neon Auth para alterar sua senha');
   };
 
   // Bank functions
   const addBank = async (bank: Omit<Bank, 'id'>) => {
     if (!user) return;
-    const { error } = await supabase.from('banks').insert({
-      user_id: user.id,
-      name: bank.name,
-      icon: bank.icon,
-      initial_balance: bank.initialBalance
-    });
-    if (error) throw error;
+    await dbInsert(
+      'INSERT INTO banks (user_id, name, icon, initial_balance) VALUES ($1, $2, $3, $4)',
+      [user.id, bank.name, bank.icon, bank.initialBalance]
+    );
     await loadUserData(user.id);
   };
 
   const updateBank = async (id: string, bank: Partial<Bank>) => {
     if (!user) return;
-    const updateData: Record<string, unknown> = {};
-    if (bank.name !== undefined) updateData.name = bank.name;
-    if (bank.icon !== undefined) updateData.icon = bank.icon;
-    if (bank.initialBalance !== undefined) updateData.initial_balance = bank.initialBalance;
-    
-    const { error } = await supabase.from('banks').update(updateData).eq('id', id);
-    if (error) throw error;
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (bank.name !== undefined) { updates.push(`name = $${paramIndex++}`); values.push(bank.name); }
+    if (bank.icon !== undefined) { updates.push(`icon = $${paramIndex++}`); values.push(bank.icon); }
+    if (bank.initialBalance !== undefined) { updates.push(`initial_balance = $${paramIndex++}`); values.push(bank.initialBalance); }
+
+    if (updates.length === 0) return;
+
+    values.push(id);
+    await dbExecute(`UPDATE banks SET ${updates.join(', ')} WHERE id = $${paramIndex}`, values);
     await loadUserData(user.id);
   };
 
   const deleteBank = async (id: string) => {
     if (!user) return;
-    const { error } = await supabase.from('banks').delete().eq('id', id);
-    if (error) throw error;
+    await dbExecute('DELETE FROM banks WHERE id = $1', [id]);
     await loadUserData(user.id);
   };
 
@@ -567,64 +432,66 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // Category functions
   const addCategory = async (category: Omit<Category, 'id'>) => {
     if (!user) return;
-    const { error } = await supabase.from('categories').insert({
-      user_id: user.id,
-      name: category.name,
-      icon: category.icon
-    });
-    if (error) throw error;
+    await dbInsert(
+      'INSERT INTO categories (user_id, name, icon) VALUES ($1, $2, $3)',
+      [user.id, category.name, category.icon]
+    );
     await loadUserData(user.id);
   };
 
   const updateCategory = async (id: string, category: Partial<Category>) => {
     if (!user) return;
-    const updateData: Record<string, unknown> = {};
-    if (category.name !== undefined) updateData.name = category.name;
-    if (category.icon !== undefined) updateData.icon = category.icon;
-    
-    const { error } = await supabase.from('categories').update(updateData).eq('id', id);
-    if (error) throw error;
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (category.name !== undefined) { updates.push(`name = $${paramIndex++}`); values.push(category.name); }
+    if (category.icon !== undefined) { updates.push(`icon = $${paramIndex++}`); values.push(category.icon); }
+
+    if (updates.length === 0) return;
+
+    values.push(id);
+    await dbExecute(`UPDATE categories SET ${updates.join(', ')} WHERE id = $${paramIndex}`, values);
     await loadUserData(user.id);
   };
 
   const deleteCategory = async (id: string) => {
     if (!user) return;
-    const { error } = await supabase.from('categories').delete().eq('id', id);
-    if (error) throw error;
+    await dbExecute('DELETE FROM categories WHERE id = $1', [id]);
     await loadUserData(user.id);
   };
 
   // Credit Card functions
   const addCreditCard = async (card: Omit<CreditCard, 'id'>) => {
     if (!user) return;
-    const { error } = await supabase.from('credit_cards').insert({
-      user_id: user.id,
-      name: card.name,
-      bank: card.bank,
-      credit_limit: card.limit,
-      icon: card.icon
-    });
-    if (error) throw error;
+    await dbInsert(
+      'INSERT INTO credit_cards (user_id, name, bank, credit_limit, icon) VALUES ($1, $2, $3, $4, $5)',
+      [user.id, card.name, card.bank, card.limit, card.icon]
+    );
     await loadUserData(user.id);
   };
 
   const updateCreditCard = async (id: string, card: Partial<CreditCard>) => {
     if (!user) return;
-    const updateData: Record<string, unknown> = {};
-    if (card.name !== undefined) updateData.name = card.name;
-    if (card.bank !== undefined) updateData.bank = card.bank;
-    if (card.limit !== undefined) updateData.credit_limit = card.limit;
-    if (card.icon !== undefined) updateData.icon = card.icon;
-    
-    const { error } = await supabase.from('credit_cards').update(updateData).eq('id', id);
-    if (error) throw error;
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (card.name !== undefined) { updates.push(`name = $${paramIndex++}`); values.push(card.name); }
+    if (card.bank !== undefined) { updates.push(`bank = $${paramIndex++}`); values.push(card.bank); }
+    if (card.limit !== undefined) { updates.push(`credit_limit = $${paramIndex++}`); values.push(card.limit); }
+    if (card.icon !== undefined) { updates.push(`icon = $${paramIndex++}`); values.push(card.icon); }
+
+    if (updates.length === 0) return;
+
+    values.push(id);
+    await dbExecute(`UPDATE credit_cards SET ${updates.join(', ')} WHERE id = $${paramIndex}`, values);
     await loadUserData(user.id);
   };
 
   const deleteCreditCard = async (id: string) => {
     if (!user) return;
-    const { error } = await supabase.from('credit_cards').delete().eq('id', id);
-    if (error) throw error;
+    await dbExecute('DELETE FROM credit_cards WHERE id = $1', [id]);
     await loadUserData(user.id);
   };
 
@@ -632,7 +499,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const now = new Date();
     const thisMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const today = now.toISOString().split('T')[0];
-    
+
     return creditCardTransactions
       .filter(t => t.card === cardId && t.date.startsWith(thisMonthStr) && t.date <= today && !t.isPayment && t.value > 0)
       .reduce((s, t) => s + t.value, 0);
@@ -645,317 +512,233 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   };
 
   // Transaction functions
-  const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
-    if (!user) throw new Error('Usuário não está logado');
-    
-    const { data, error } = await supabase.from('transactions').insert({
-      user_id: user.id,
-      date: transaction.date,
-      description: transaction.description,
-      bank: transaction.bank,
-      type: transaction.type,
-      category: transaction.category,
-      value: transaction.value
-    }).select().single();
-    
-    if (error) throw error;
-    
-    if (data) {
-      setTransactions(prev => [{
-        id: data.id,
-        date: data.date,
-        description: data.description,
-        bank: data.bank,
-        type: data.type,
-        category: data.category,
-        value: data.value
-      }, ...prev]);
-    }
-  };
+    const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
+     if (!user) throw new Error('Usuário não está logado');
+
+     const data = await dbInsert<{ id: string }>(
+       `INSERT INTO transactions (user_id, date, description, bank, type, category, value)
+        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+       [user.id, normalizeDate(transaction.date), transaction.description, transaction.bank, transaction.type, transaction.category, parseFloat(transaction.value)]
+     );
+
+     if (data) {
+       setTransactions(prev => [{
+         id: data.id,
+         date: normalizeDate(transaction.date),
+         description: transaction.description,
+         bank: transaction.bank,
+         type: transaction.type,
+         category: transaction.category,
+         value: parseFloat(transaction.value)
+       }, ...prev]);
+     }
+   };
 
   const updateTransaction = async (id: string, transaction: Partial<Transaction>) => {
     if (!user) return;
-    const updateData: Record<string, unknown> = {};
-    if (transaction.date !== undefined) updateData.date = transaction.date;
-    if (transaction.description !== undefined) updateData.description = transaction.description;
-    if (transaction.bank !== undefined) updateData.bank = transaction.bank;
-    if (transaction.type !== undefined) updateData.type = transaction.type;
-    if (transaction.category !== undefined) updateData.category = transaction.category;
-    if (transaction.value !== undefined) updateData.value = transaction.value;
-    
-    const { error } = await supabase.from('transactions').update(updateData).eq('id', id);
-    if (error) throw error;
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (transaction.date !== undefined) { updates.push(`date = $${paramIndex++}`); values.push(normalizeDate(transaction.date)); }
+    if (transaction.description !== undefined) { updates.push(`description = $${paramIndex++}`); values.push(transaction.description); }
+    if (transaction.bank !== undefined) { updates.push(`bank = $${paramIndex++}`); values.push(transaction.bank); }
+    if (transaction.type !== undefined) { updates.push(`type = $${paramIndex++}`); values.push(transaction.type); }
+    if (transaction.category !== undefined) { updates.push(`category = $${paramIndex++}`); values.push(transaction.category); }
+     if (transaction.value !== undefined) { updates.push(`value = $${paramIndex++}`); values.push(parseFloat(transaction.value)); }
+
+    if (updates.length === 0) return;
+
+    values.push(id);
+    await dbExecute(`UPDATE transactions SET ${updates.join(', ')} WHERE id = $${paramIndex}`, values);
     setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...transaction } : t));
   };
 
   const deleteTransaction = async (id: string) => {
     if (!user) return;
-    const { error } = await supabase.from('transactions').delete().eq('id', id);
-    if (error) throw error;
+    await dbExecute('DELETE FROM transactions WHERE id = $1', [id]);
     setTransactions(prev => prev.filter(t => t.id !== id));
   };
 
   // Credit Card Transaction functions
   const addCreditCardTransaction = async (transaction: Omit<CreditCardTransaction, 'id'>) => {
     if (!user) return;
-     const { data, error } = await supabase.from('credit_card_transactions').insert({
-       user_id: user.id,
-       date: transaction.date,
-       description: transaction.description,
-       card: transaction.card,
-       category: transaction.category,
-       value: transaction.value,
-       is_payment: transaction.isPayment,
-       invoice_month: transaction.invoice_month
-     }).select().single();
-     if (error) throw error;
+    const data = await dbInsert<{ id: string }>(
+      `INSERT INTO credit_card_transactions (user_id, date, description, card, category, value, is_payment, invoice_month)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+       [user.id, normalizeDate(transaction.date), transaction.description, transaction.card, transaction.category, parseFloat(transaction.value), transaction.isPayment, transaction.invoice_month]
+    );
+
      if (data) {
-       setCreditCardTransactions(prev => [{
-         id: data.id,
-         date: data.date,
-         description: data.description,
-         card: data.card,
-         category: data.category,
-         value: data.value,
-         isPayment: data.is_payment,
-         invoice_month: data.invoice_month
-       }, ...prev]);
+        setCreditCardTransactions(prev => [{
+          id: data.id,
+          date: normalizeDate(transaction.date),
+          description: transaction.description,
+          card: transaction.card,
+          category: transaction.category,
+          value: parseFloat(transaction.value),
+          isPayment: transaction.isPayment,
+          invoice_month: transaction.invoice_month
+        }, ...prev]);
      }
    };
 
-   const bulkAddCreditCardTransactions = async (transactions: Omit<CreditCardTransaction, 'id'>[]): Promise<number> => {
-     if (!user || transactions.length === 0) return 0;
-     
-     const records = transactions.map(tx => ({
-       user_id: user.id,
-       date: tx.date,
-       description: tx.description,
-       card: tx.card,
-       category: tx.category,
-       value: tx.value,
-       is_payment: tx.isPayment,
-       invoice_month: tx.invoice_month
-     }));
-    
+  const bulkAddCreditCardTransactions = async (transactions: Omit<CreditCardTransaction, 'id'>[]): Promise<number> => {
+    if (!user || transactions.length === 0) return 0;
+
     const BATCH_SIZE = 100;
     let totalInserted = 0;
-    
-    for (let i = 0; i < records.length; i += BATCH_SIZE) {
-      const batch = records.slice(i, i + BATCH_SIZE);
-      const { data, error } = await supabase
-        .from('credit_card_transactions')
-        .insert(batch)
-        .select();
-      
-      if (error) {
-        console.error(`Erro no bulk insert lote ${Math.floor(i/BATCH_SIZE) + 1}:`, error);
-        throw error;
+
+    for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
+      const batch = transactions.slice(i, i + BATCH_SIZE);
+      const params = batch.map(tx => [
+        user.id, tx.date, tx.description, tx.card, tx.category, parseFloat(tx.value), tx.isPayment, tx.invoice_month
+      ]);
+
+      for (const paramSet of params) {
+        await dbInsert(
+          `INSERT INTO credit_card_transactions (user_id, date, description, card, category, value, is_payment, invoice_month)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          paramSet
+        );
+        totalInserted++;
       }
-      
-       if (data && data.length > 0) {
-         totalInserted += data.length;
-         const newTransactions = data.map(t => ({
-           id: t.id,
-           date: t.date,
-           description: t.description,
-           card: t.card,
-           category: t.category,
-           value: t.value,
-           isPayment: t.is_payment,
-           invoice_month: t.invoice_month
-         }));
-         setCreditCardTransactions(prev => [...newTransactions, ...prev]);
-       }
-     }
-     
-     return totalInserted;
-   };
+    }
 
-   const reloadCreditCardTransactions = async () => {
-     if (!user) return;
-     
-     const { data, error } = await supabase
-       .from('credit_card_transactions')
-       .select('*')
-       .eq('user_id', user.id)
-       .order('created_at', { ascending: false });
-     
-     if (error) {
-       console.error('Erro ao recarregar transações de cartão:', error);
-       throw error;
-     }
-     
-     if (data) {
-       setCreditCardTransactions(data.map(t => ({
-         id: t.id,
-         date: t.date,
-         description: t.description,
-         card: t.card,
-         category: t.category,
-         value: t.value,
-         isPayment: t.is_payment,
-         invoice_month: t.invoice_month
-       })));
-     }
-   };
+    // Reload
+    await reloadCreditCardTransactions();
+    return totalInserted;
+  };
 
-   const updateCreditCardTransaction = async (id: string, transaction: Partial<CreditCardTransaction>) => {
-     if (!user) {
-       throw new Error('Usuário não está logado');
-     }
-     
-     const updateData: Record<string, unknown> = {};
-     if (transaction.date !== undefined) updateData.date = transaction.date;
-     if (transaction.description !== undefined) updateData.description = transaction.description;
-     if (transaction.card !== undefined) updateData.card = transaction.card;
-     if (transaction.category !== undefined) updateData.category = transaction.category;
-     if (transaction.value !== undefined) updateData.value = transaction.value;
-     if (transaction.isPayment !== undefined) updateData.is_payment = transaction.isPayment;
-     if (transaction.invoice_month !== undefined) updateData.invoice_month = transaction.invoice_month;
-     
-     const { error } = await supabase
-       .from('credit_card_transactions')
-       .update(updateData)
-       .eq('id', id);
-     
-     if (error) {
-       throw error;
-     }
-     
-     setCreditCardTransactions(prev => prev.map(t => t.id === id ? { ...t, ...transaction } : t));
-   };
+  const reloadCreditCardTransactions = async () => {
+    if (!user) return;
+
+    const data = await dbSelect(
+      'SELECT * FROM credit_card_transactions WHERE user_id = $1 ORDER BY created_at DESC',
+      [user.id]
+    );
+
+    setCreditCardTransactions(data.map((t: any) => ({
+      id: t.id,
+      date: t.date,
+      description: t.description,
+      card: t.card,
+      category: t.category,
+       value: parseFloat(t.value),
+      isPayment: t.is_payment,
+      invoice_month: t.invoice_month
+    })));
+  };
+
+  const updateCreditCardTransaction = async (id: string, transaction: Partial<CreditCardTransaction>) => {
+    if (!user) throw new Error('Usuário não está logado');
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (transaction.date !== undefined) { updates.push(`date = $${paramIndex++}`); values.push(normalizeDate(transaction.date)); }
+    if (transaction.description !== undefined) { updates.push(`description = $${paramIndex++}`); values.push(transaction.description); }
+    if (transaction.card !== undefined) { updates.push(`card = $${paramIndex++}`); values.push(transaction.card); }
+    if (transaction.category !== undefined) { updates.push(`category = $${paramIndex++}`); values.push(transaction.category); }
+     if (transaction.value !== undefined) { updates.push(`value = $${paramIndex++}`); values.push(parseFloat(transaction.value)); }
+    if (transaction.isPayment !== undefined) { updates.push(`is_payment = $${paramIndex++}`); values.push(transaction.isPayment); }
+    if (transaction.invoice_month !== undefined) { updates.push(`invoice_month = $${paramIndex++}`); values.push(transaction.invoice_month); }
+
+    if (updates.length === 0) return;
+
+    values.push(id);
+    await dbExecute(`UPDATE credit_card_transactions SET ${updates.join(', ')} WHERE id = $${paramIndex}`, values);
+    setCreditCardTransactions(prev => prev.map(t => t.id === id ? { ...t, ...transaction } : t));
+  };
 
   const deleteCreditCardTransaction = async (id: string) => {
     if (!user) throw new Error('Usuário não está logado');
-    
-    const { error } = await supabase.from('credit_card_transactions').delete().eq('id', id);
-    
-    if (error) {
-      console.error('Erro ao excluir transação do cartão:', error);
-      throw new Error(error.message || 'Erro ao excluir transação');
-    }
-    
+    await dbExecute('DELETE FROM credit_card_transactions WHERE id = $1', [id]);
     setCreditCardTransactions(prev => prev.filter(t => t.id !== id));
   };
 
   // Pay card invoice
   const payCardInvoice = async (cardId: string, bankId: string, value: number, date: string) => {
-    if (!user) {
-      console.error('❌ payCardInvoice: Usuário não logado');
-      throw new Error('Usuário não logado');
-    }
-    
-    console.log('💳 Iniciando pagamento de fatura:', { cardId, bankId, value, date });
+    if (!user) throw new Error('Usuário não logado');
 
-    // Create credit card transaction FIRST (negative value = payment, reduces card debt)
-    const { data: ccData, error: error1 } = await supabase.from('credit_card_transactions').insert({
-      user_id: user.id,
-      date,
-      description: 'Pagamento Fatura',
-      card: cardId,
-      category: 'pagamento_cartao',
-      value: -value,
-      is_payment: true,
-      invoice_month: date.substring(0, 7)
-    }).select().single();
-    
-    if (error1) {
-      console.error('❌ Erro ao criar transação no cartão:', error1);
-      throw error1;
-    }
-    console.log('✅ Transação do cartão criada:', ccData);
+    // Create credit card transaction
+    const ccData = await dbInsert<{ id: string }>(
+      `INSERT INTO credit_card_transactions (user_id, date, description, card, category, value, is_payment, invoice_month)
+       VALUES ($1, $2, 'Pagamento Fatura', $3, 'pagamento_cartao', $4, true, $5) RETURNING id`,
+      [user.id, date, cardId, -value, date.substring(0, 7)]
+    );
 
-    // Create bank transaction (money leaving bank)
-    const { data: txData, error: error2 } = await supabase.from('transactions').insert({
-      user_id: user.id,
-      date,
-      description: 'Pagamento Fatura',
-      bank: bankId,
-      type: 'debit',
-      category: 'pagamento_cartao',
-      value
-    }).select().single();
-    
-    if (error2) {
-      console.error('❌ Erro ao criar transação no banco:', error2);
-      // Rollback: remove a transação do cartão já criada
-      await supabase.from('credit_card_transactions').delete().eq('id', ccData.id);
-      throw error2;
+    // Create bank transaction
+    try {
+      const txData = await dbInsert<{ id: string }>(
+        `INSERT INTO transactions (user_id, date, description, bank, type, category, value)
+         VALUES ($1, $2, 'Pagamento Fatura', $3, 'debit', 'pagamento_cartao', $4) RETURNING id`,
+        [user.id, date, bankId, value]
+      );
+    } catch (error) {
+      // Rollback
+      if (ccData) await dbExecute('DELETE FROM credit_card_transactions WHERE id = $1', [ccData.id]);
+      throw error;
     }
-    console.log('✅ Transação do banco criada:', txData);
-    
-    console.log('🔄 Recarregando dados do usuário...');
-    await loadUserData(user.id);
-    console.log('✅ Pagamento de fatura CONCLUÍDO!');
   };
 
   // Scheduled Transactions functions
   const loadScheduledTransactions = async () => {
     if (!user) return;
-    
-    const { data, error } = await supabase
-      .from('scheduled_transactions')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('due_date', { ascending: true });
-    
-    if (error) {
-      if (error.message.includes('does not exist') || error.message.includes('relation')) {
-        setScheduledTransactionsTableExists(false);
-        setScheduledTransactions([]);
-      } else {
-        console.error('Erro ao carregar lançamentos futuros:', error);
-      }
-    } else if (data) {
-      setScheduledTransactionsTableExists(true);
-      setScheduledTransactions(data.map(t => ({
-        id: t.id,
-        description: t.description,
-        type: t.type,
-        value: parseFloat(t.value),
-        totalInstallments: t.total_installments,
-        currentInstallment: t.current_installment,
-        dueDate: t.due_date,
-        category: t.category || '',
-        bank: t.bank || '',
-        card: t.card || '',
-        isPaid: t.is_paid,
-        autoConfirm: t.auto_confirm,
-        status: t.status
-      })));
+
+    const hasTable = await dbTableExists('scheduled_transactions');
+    if (!hasTable) {
+      setScheduledTransactionsTableExists(false);
+      setScheduledTransactions([]);
+      return;
     }
+
+    const data = await dbSelect(
+      'SELECT * FROM scheduled_transactions WHERE user_id = $1 ORDER BY due_date ASC',
+      [user.id]
+    );
+
+    setScheduledTransactionsTableExists(true);
+    setScheduledTransactions(data.map((t: any) => ({
+      id: t.id,
+      description: t.description,
+      type: t.type,
+      transactionType: t.transaction_type || 'debit',
+      value: parseFloat(t.value),
+      totalInstallments: t.total_installments,
+      currentInstallment: t.current_installment,
+      dueDate: t.due_date,
+      category: t.category || '',
+      bank: t.bank || '',
+      card: t.card || '',
+      isPaid: t.is_paid,
+      autoConfirm: t.auto_confirm,
+      status: t.status
+    })));
   };
 
   const addScheduledTransaction = async (transaction: Omit<ScheduledTransaction, 'id'>): Promise<ScheduledTransaction | null> => {
     if (!user) return null;
-    
-    const { data, error } = await supabase
-      .from('scheduled_transactions')
-      .insert({
-        user_id: user.id,
-        description: transaction.description.toUpperCase(),
-        type: transaction.type,
-        transaction_type: transaction.transactionType || 'debit',
-        value: transaction.value,
-        total_installments: transaction.totalInstallments,
-        current_installment: transaction.currentInstallment,
-        due_date: transaction.dueDate,
-        category: transaction.category || null,
-        bank: transaction.bank || null,
-        card: transaction.card || null,
-        auto_confirm: transaction.autoConfirm,
-        status: 'pending'
-      })
-      .select()
-      .single();
-    
-    if (error) {
-      if (error.message.includes('does not exist') || error.message.includes('relation')) {
-        setScheduledTransactionsTableExists(false);
-      }
-      throw error;
+
+    const hasTable = await dbTableExists('scheduled_transactions');
+    if (!hasTable) {
+      setScheduledTransactionsTableExists(false);
+      throw new Error('Tabela scheduled_transactions não existe');
     }
-    
+
+    const data = await dbInsert<any>(
+      `INSERT INTO scheduled_transactions (user_id, description, type, transaction_type, value, total_installments, current_installment, due_date, category, bank, card, auto_confirm, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pending')
+       RETURNING *`,
+      [
+        user.id, transaction.description.toUpperCase(), transaction.type, transaction.transactionType || 'debit',
+         parseFloat(transaction.value), transaction.totalInstallments, transaction.currentInstallment,
+         normalizeDate(transaction.dueDate), transaction.category || null, transaction.bank || null,
+        transaction.card || null, transaction.autoConfirm
+      ]
+    );
+
     if (data) {
       const newTx: ScheduledTransaction = {
         id: data.id,
@@ -973,123 +756,89 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         autoConfirm: data.auto_confirm,
         status: data.status
       };
-      setScheduledTransactions(prev => [...prev, newTx].sort((a, b) => a.dueDate.localeCompare(b.dueDate)));
-      return newTx;
+       setScheduledTransactions(prev => [...prev, newTx].sort((a, b) => a.dueDate.localeCompare(b.dueDate)));
+       return newTx;
     }
     return null;
   };
 
   const updateScheduledTransaction = async (id: string, transaction: Partial<ScheduledTransaction>) => {
     if (!user) return;
-    
-    const updateData: Record<string, unknown> = {};
-    if (transaction.description !== undefined) updateData.description = transaction.description.toUpperCase();
-    if (transaction.type !== undefined) updateData.type = transaction.type;
-    if (transaction.value !== undefined) updateData.value = transaction.value;
-    if (transaction.totalInstallments !== undefined) updateData.total_installments = transaction.totalInstallments;
-    if (transaction.currentInstallment !== undefined) updateData.current_installment = transaction.currentInstallment;
-    if (transaction.dueDate !== undefined) updateData.due_date = transaction.dueDate;
-    if (transaction.category !== undefined) updateData.category = transaction.category;
-    if (transaction.bank !== undefined) updateData.bank = transaction.bank;
-    if (transaction.card !== undefined) updateData.card = transaction.card;
-    if (transaction.isPaid !== undefined) updateData.is_paid = transaction.isPaid;
-    if (transaction.autoConfirm !== undefined) updateData.auto_confirm = transaction.autoConfirm;
-    if (transaction.status !== undefined) updateData.status = transaction.status;
-    updateData.updated_at = new Date().toISOString();
-    
-    const { error } = await supabase
-      .from('scheduled_transactions')
-      .update(updateData)
-      .eq('id', id);
-    
-    if (error) throw error;
-    
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (transaction.description !== undefined) { updates.push(`description = $${paramIndex++}`); values.push(transaction.description.toUpperCase()); }
+    if (transaction.type !== undefined) { updates.push(`type = $${paramIndex++}`); values.push(transaction.type); }
+    if (transaction.value !== undefined) { updates.push(`value = $${paramIndex++}`); values.push(parseFloat(transaction.value)); }
+    if (transaction.totalInstallments !== undefined) { updates.push(`total_installments = $${paramIndex++}`); values.push(transaction.totalInstallments); }
+    if (transaction.currentInstallment !== undefined) { updates.push(`current_installment = $${paramIndex++}`); values.push(transaction.currentInstallment); }
+    if (transaction.dueDate !== undefined) { updates.push(`due_date = $${paramIndex++}`); values.push(normalizeDate(transaction.dueDate)); }
+    if (transaction.category !== undefined) { updates.push(`category = $${paramIndex++}`); values.push(transaction.category); }
+    if (transaction.bank !== undefined) { updates.push(`bank = $${paramIndex++}`); values.push(transaction.bank); }
+    if (transaction.card !== undefined) { updates.push(`card = $${paramIndex++}`); values.push(transaction.card); }
+    if (transaction.isPaid !== undefined) { updates.push(`is_paid = $${paramIndex++}`); values.push(transaction.isPaid); }
+    if (transaction.autoConfirm !== undefined) { updates.push(`auto_confirm = $${paramIndex++}`); values.push(transaction.autoConfirm); }
+    if (transaction.status !== undefined) { updates.push(`status = $${paramIndex++}`); values.push(transaction.status); }
+    updates.push(`updated_at = NOW()`);
+
+    if (updates.length === 0) return;
+
+    values.push(id);
+    await dbExecute(`UPDATE scheduled_transactions SET ${updates.join(', ')} WHERE id = $${paramIndex}`, values);
     setScheduledTransactions(prev => prev.map(t => t.id === id ? { ...t, ...transaction } : t));
   };
 
   const deleteScheduledTransaction = async (id: string) => {
     if (!user) return;
-    
-    const { error } = await supabase
-      .from('scheduled_transactions')
-      .delete()
-      .eq('id', id);
-    
-    if (error) throw error;
-    
+    await dbExecute('DELETE FROM scheduled_transactions WHERE id = $1', [id]);
     setScheduledTransactions(prev => prev.filter(t => t.id !== id));
   };
 
   const confirmScheduledTransaction = async (id: string, confirmedValue?: number, confirmedDate?: string, useCreditCard?: boolean) => {
     if (!user) return;
-    
+
     const scheduledTx = scheduledTransactions.find(t => t.id === id);
     if (!scheduledTx) throw new Error('Lançamento não encontrado');
-    
+
     const value = confirmedValue || scheduledTx.value;
     const date = confirmedDate || new Date().toISOString().split('T')[0];
-    const transactionType = scheduledTx.transactionType || 'debit'; // padrão é débito
-    
-    // Criar transação real
+    const transactionType = scheduledTx.transactionType || 'debit';
+
     if (useCreditCard && scheduledTx.card) {
-      const { error: ccTxError } = await supabase
-        .from('credit_card_transactions')
-        .insert({
-          user_id: user.id,
-          date: date,
-          description: scheduledTx.description,
-          card: scheduledTx.card,
-          category: scheduledTx.category || '',
-          value: value,
-          is_payment: false
-        });
-      
-      if (ccTxError) throw ccTxError;
-      
-      // Atualizar estado local
+      await dbInsert(
+        `INSERT INTO credit_card_transactions (user_id, date, description, card, category, value, is_payment)
+         VALUES ($1, $2, $3, $4, $5, $6, false)`,
+        [user.id, date, scheduledTx.description, scheduledTx.card, scheduledTx.category || '', value]
+      );
+
       setCreditCardTransactions(prev => [{
         id: Date.now().toString(),
-        date: date,
-        description: scheduledTx.description,
-        card: scheduledTx.card,
-        category: scheduledTx.category || '',
-        value: value,
-        isPayment: false
+        date, description: scheduledTx.description,
+        card: scheduledTx.card, category: scheduledTx.category || '',
+        value, isPayment: false
       }, ...prev]);
     } else if (scheduledTx.bank) {
-      const { error: txError } = await supabase
-        .from('transactions')
-        .insert({
-          user_id: user.id,
-          date: date,
-          description: scheduledTx.description,
-          bank: scheduledTx.bank,
-          type: transactionType, // usa o tipo do lançamento (credit ou debit)
-          category: scheduledTx.category || '',
-          value: value
-        });
-      
-      if (txError) throw txError;
-      
-      // Atualizar estado local
+      await dbInsert(
+        `INSERT INTO transactions (user_id, date, description, bank, type, category, value)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [user.id, date, scheduledTx.description, scheduledTx.bank, transactionType, scheduledTx.category || '', value]
+      );
+
       setTransactions(prev => [{
         id: Date.now().toString(),
-        date: date,
-        description: scheduledTx.description,
-        bank: scheduledTx.bank,
-        type: transactionType,
-        category: scheduledTx.category || '',
-        value: value
+        date, description: scheduledTx.description,
+        bank: scheduledTx.bank, type: transactionType as 'debit' | 'credit',
+        category: scheduledTx.category || '', value
       }, ...prev]);
     } else {
       throw new Error('Lançamento deve ter banco ou cartão definido');
     }
-    
-    // Atualizar o lançamento futuro
-    let updateData: Partial<ScheduledTransaction> = {
-      isPaid: true
-    };
-    
+
+    // Update scheduled transaction
+    let updateData: Partial<ScheduledTransaction> = { isPaid: true };
+
     if (scheduledTx.type === 'parcel') {
       const nextInstallment = scheduledTx.currentInstallment + 1;
       if (nextInstallment >= scheduledTx.totalInstallments) {
@@ -1110,7 +859,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     } else {
       updateData.status = 'confirmed';
     }
-    
+
     await updateScheduledTransaction(id, updateData);
   };
 
@@ -1122,60 +871,36 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
    const getCardName = (id: string) => creditCards.find(c => c.id === id)?.name || id;
    const getCardIcon = (id: string) => creditCards.find(c => c.id === id)?.icon || '💳';
 
-   // Mapeamento de descrição -> categoria
    const getCategoryForDescription = (description: string): string | undefined => {
      return descriptionMappings.get(description.toUpperCase());
    };
 
    const saveDescriptionMapping = async (description: string, categoryId: string) => {
      if (!user) return;
-     
+
      const upperDesc = description.toUpperCase();
-     
-     console.log(`💾 Salvando mapeamento: "${upperDesc}" -> categoria ${categoryId}`);
-     
-     const { data: existing } = await supabase
-       .from('description_category_mappings')
-       .select('*')
-       .eq('user_id', user.id)
-       .eq('description', upperDesc)
-       .maybeSingle();
-     
+     const existing = await dbSelectOne<{ id: string; usage_count: number }>(
+       'SELECT id, usage_count FROM description_category_mappings WHERE user_id = $1 AND description = $2',
+       [user.id, upperDesc]
+     );
+
      if (existing) {
-       const { error } = await supabase
-         .from('description_category_mappings')
-         .update({
-           category_id: categoryId,
-           usage_count: existing.usage_count + 1,
-           updated_at: new Date().toISOString()
-         })
-         .eq('id', existing.id);
-       
-       if (!error) {
-         setDescriptionMappings(prev => {
-           const updated = new Map(prev);
-           updated.set(upperDesc, categoryId);
-           return updated;
-         });
-       }
+       await dbExecute(
+         'UPDATE description_category_mappings SET category_id = $1, usage_count = $2, updated_at = NOW() WHERE id = $3',
+         [categoryId, existing.usage_count + 1, existing.id]
+       );
      } else {
-       const { error } = await supabase
-         .from('description_category_mappings')
-         .insert({
-           user_id: user.id,
-           description: upperDesc,
-           category_id: categoryId,
-           usage_count: 1
-         });
-       
-       if (!error) {
-         setDescriptionMappings(prev => {
-           const updated = new Map(prev);
-           updated.set(upperDesc, categoryId);
-           return updated;
-         });
-       }
+       await dbInsert(
+         'INSERT INTO description_category_mappings (user_id, description, category_id, usage_count) VALUES ($1, $2, $3, 1)',
+         [user.id, upperDesc, categoryId]
+       );
      }
+
+     setDescriptionMappings(prev => {
+       const updated = new Map(prev);
+       updated.set(upperDesc, categoryId);
+       return updated;
+     });
    };
 
    // Export functions
@@ -1183,26 +908,26 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
    const exportToJSON = () => JSON.stringify({ transactions, banks, categories, creditCards, creditCardTransactions }, null, 2);
 
    return (
-     <FinanceContext.Provider value={{ 
+     <FinanceContext.Provider value={{
        user, loading, isOnline, isExpired, expiresAt,
-       banks, categories, creditCards, transactions, creditCardTransactions, 
+       banks, categories, creditCards, transactions, creditCardTransactions,
        scheduledTransactions, scheduledTransactionsTableExists,
        descriptionMappings, descriptionMappingsTableExists,
-       login, register, logout, changePassword, 
-       addBank, updateBank, deleteBank, getBankBalance, 
-       addCategory, updateCategory, deleteCategory, 
-       addCreditCard, updateCreditCard, deleteCreditCard, getCardInvoice, getCardTotalDebt, 
-       addTransaction, updateTransaction, deleteTransaction, 
+       login, register, logout, changePassword,
+       addBank, updateBank, deleteBank, getBankBalance,
+       addCategory, updateCategory, deleteCategory,
+       addCreditCard, updateCreditCard, deleteCreditCard, getCardInvoice, getCardTotalDebt,
+       addTransaction, updateTransaction, deleteTransaction,
         addCreditCardTransaction, bulkAddCreditCardTransactions, reloadCreditCardTransactions, updateCreditCardTransaction, deleteCreditCardTransaction,
-       payCardInvoice, loadScheduledTransactions, addScheduledTransaction, updateScheduledTransaction, 
+       payCardInvoice, loadScheduledTransactions, addScheduledTransaction, updateScheduledTransaction,
        deleteScheduledTransaction, confirmScheduledTransaction,
-       getCategoryName, getCategoryIcon, getBankName, getBankIcon, getCardName, getCardIcon, 
+       getCategoryName, getCategoryIcon, getBankName, getBankIcon, getCardName, getCardIcon,
        exportToCSV, exportToJSON,
        saveDescriptionMapping, getCategoryForDescription
      }}>
-      {children}
-    </FinanceContext.Provider>
-  );
+       {children}
+     </FinanceContext.Provider>
+   );
 }
 
 export const useFinance = () => {

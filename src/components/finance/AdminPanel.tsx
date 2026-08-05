@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useFinance } from '@/contexts/FinanceContext';
-import { supabase } from '@/lib/supabase';
+// import { supabase } from '@/lib/supabase'; // Removido - usando API routes
 import { AdminUser, ADMIN_EMAILS, toUpperCase } from '@/lib/types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
@@ -247,8 +247,22 @@ export function AdminPanel({ showNotification }: { showNotification: (msg: strin
     
     setLoading(true);
     try {
-      const { error } = await supabase.from('pending_users').delete().eq('id', id);
-      if (error) throw error;
+      // Usar API para deletar pending_user
+      const response = await fetch(`/api/admin/delete-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminEmail: user?.email,
+          userId: id,
+          deleteType: 'pending'
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao remover convite');
+      }
+      
       showNotification('Convite removido!', 'success');
       loadUsers();
     } catch (error) {
@@ -294,7 +308,7 @@ export function AdminPanel({ showNotification }: { showNotification: (msg: strin
       }
 
       showNotification(`✅ Usuário ${email} excluído com sucesso!`, 'success');
-      loadUsers();
+      await loadUsers();
     } catch (error) {
       console.error('Erro ao excluir usuário:', error);
       showNotification('Erro ao excluir usuário', 'error');
