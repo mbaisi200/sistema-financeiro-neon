@@ -1,6 +1,9 @@
 import { neon } from '@neondatabase/serverless';
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = (process.env.DATABASE_URL || '')
+  .split('\n')
+  .map((s) => s.trim())
+  .find((s) => s.startsWith('postgres')) || '';
 
 if (!databaseUrl) {
   throw new Error('DATABASE_URL não está definida');
