@@ -13,7 +13,7 @@ import { toUpperCase, type CreditCardTransaction } from '@/lib/types';
    categories: { id: string; name: string; icon: string }[];
    historicalTransactions: CreditCardTransaction[];
    descriptionMappings: Map<string, string>;
-   onImport: (transactions: { date: string; description: string; card: string; category: string; value: number; isPayment: boolean }[]) => Promise<void>;
+   onImport: (transactions: { date: string; description: string; card: string; category: string; value: number; isPayment: boolean; invoice_month?: string }[]) => Promise<void>;
    showNotification: (msg: string, type: 'success' | 'error') => void;
  }
 

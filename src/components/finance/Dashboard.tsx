@@ -18,6 +18,7 @@ export function Dashboard() {
   const { transactions, banks, creditCardTransactions, categories, creditCards, scheduledTransactions, getBankBalance, getBankName, getBankIcon, getCategoryName, getCategoryIcon, getCardName, getCardIcon, getCardTotalDebt } = useFinance();
   const [filterBank, setFilterBank] = useState('');
   const [filterPeriod, setFilterPeriod] = useState('lastMonth');
+  const [filterInvoiceMonth, setFilterInvoiceMonth] = useState('');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [categoryReport, setCategoryReport] = useState<CategoryReport | null>(null);
@@ -52,6 +53,7 @@ export function Dashboard() {
    const getPeriodInvoiceMonth = (): string | null => {
      if (filterPeriod === 'thisMonth') return thisMonthYearMonth;
      if (filterPeriod === 'lastMonth') return lastMonthYearMonth;
+     if (filterPeriod === 'invoiceMonth') return filterInvoiceMonth || null;
      return null;
    };
    
@@ -69,6 +71,11 @@ export function Dashboard() {
    const getPeriodRange = () => {
      if (filterPeriod === 'thisMonth') return { start: thisMonthStr, end: thisMonthEnd };
      if (filterPeriod === 'lastMonth') return { start: lastMonthStartStr, end: lastMonthEndStr };
+     if (filterPeriod === 'invoiceMonth' && filterInvoiceMonth) {
+       const [y, m] = filterInvoiceMonth.split('-').map(Number);
+       const last = new Date(y, m, 0);
+       return { start: `${filterInvoiceMonth}-01`, end: toLocalDateStr(last) };
+     }
      if (filterPeriod === 'custom' && customStartDate && customEndDate) return { start: customStartDate, end: customEndDate };
      return null; // Histórico completo
    };
@@ -95,7 +102,9 @@ export function Dashboard() {
   // Data final para agendados (para este mês usa mês completo, para custom usa a data selecionada)
   const scheduledEnd = filterPeriod === 'thisMonth'
     ? thisMonthEnd
-    : (filterPeriod === 'custom' && customEndDate ? customEndDate : (filterPeriod === 'lastMonth' ? lastMonthEndStr : null));
+    : (filterPeriod === 'invoiceMonth'
+      ? (getPeriodRange()?.end || thisMonthEnd)
+      : (filterPeriod === 'custom' && customEndDate ? customEndDate : (filterPeriod === 'lastMonth' ? lastMonthEndStr : null)));
 
   // Lançamentos futuros do período
   const monthScheduled = scheduledTransactions.filter(s => {
@@ -549,6 +558,10 @@ export function Dashboard() {
   const getPeriodLabel = () => {
     if (filterPeriod === 'thisMonth') return 'Este Mês';
     if (filterPeriod === 'lastMonth') return 'Mês Anterior';
+    if (filterPeriod === 'invoiceMonth' && filterInvoiceMonth) {
+      const [y, m] = filterInvoiceMonth.split('-');
+      return `Fatura ${m}/${y}`;
+    }
     if (filterPeriod === 'custom' && customStartDate && customEndDate) {
       return `${fmtDate(customStartDate)} - ${fmtDate(customEndDate)}`;
     }
@@ -567,6 +580,10 @@ export function Dashboard() {
       const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
       setCustomStartDate(toLocalDateStr(firstDay));
       setCustomEndDate(toLocalDateStr(today));
+    }
+    if (value === 'invoiceMonth' && !filterInvoiceMonth) {
+      const now = new Date();
+      setFilterInvoiceMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
     }
   };
 
@@ -588,9 +605,21 @@ export function Dashboard() {
               <option value="">Histórico</option>
               <option value="thisMonth">Este Mês</option>
               <option value="lastMonth">Mês Anterior</option>
+              <option value="invoiceMonth">Mês da Fatura Específico</option>
               <option value="custom">Personalizado</option>
             </select>
           </div>
+          {filterPeriod === 'invoiceMonth' && (
+            <div className="form-group">
+              <label className="form-label">Mês da Fatura</label>
+              <input
+                type="month"
+                className="form-input"
+                value={filterInvoiceMonth}
+                onChange={e => setFilterInvoiceMonth(e.target.value)}
+              />
+            </div>
+          )}
           {filterPeriod === 'custom' && (
             <>
               <div className="form-group">

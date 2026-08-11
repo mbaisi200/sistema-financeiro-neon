@@ -128,7 +128,7 @@ export function CreditCards({ showNotification }: { showNotification: (msg: stri
     setEditingCardId(null);
   };
 
-     const handleBulkImport = async (transactions: { date: string; description: string; card: string; category: string; value: number; isPayment: boolean }[]) => {
+     const handleBulkImport = async (transactions: { date: string; description: string; card: string; category: string; value: number; isPayment: boolean; invoice_month?: string }[]) => {
      console.log('🚀 Iniciando importação de', transactions.length, 'transações');
      
      const getTransactionFingerprint = (tx: { date: string; description: string; card: string; value: number }): string => {
@@ -188,7 +188,8 @@ export function CreditCards({ showNotification }: { showNotification: (msg: stri
            card: tx.card,
            category: tx.category,
            value: tx.value,
-           isPayment: tx.isPayment
+           isPayment: tx.isPayment,
+           invoice_month: tx.invoice_month
          }))
        );
        
@@ -208,14 +209,15 @@ export function CreditCards({ showNotification }: { showNotification: (msg: stri
        for (let i = 0; i < transactions.length; i++) {
          const tx = transactions[i];
          try {
-           await addCreditCardTransaction({
-             date: tx.date,
-             description: tx.description,
-             card: tx.card,
-             category: tx.category,
-             value: tx.value,
-             isPayment: tx.isPayment
-           });
+await addCreditCardTransaction({
+              date: tx.date,
+              description: tx.description,
+              card: tx.card,
+              category: tx.category,
+              value: tx.value,
+              isPayment: tx.isPayment,
+              invoice_month: tx.invoice_month
+            });
            successCount++;
            if (i % 10 === 0) {
              console.log(`  📝 Progresso: ${successCount}/${transactions.length}`);
