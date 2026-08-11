@@ -2,10 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import https from 'https';
 
 const NEON_AUTH_URL = process.env.NEON_AUTH_BASE_URL!;
-const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+const APP_ORIGIN = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
 
 export const dynamic = 'force-dynamic';
+
+function getRequestOrigin(request: NextRequest): string {
+  const origin = request.headers.get('origin');
+  if (origin && origin !== 'null') return origin;
+
+  const proto = request.headers.get('x-forwarded-proto') || 'https';
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  if (host) return `${proto}://${host}`;
+
+  return APP_ORIGIN;
+}
 
 function httpsRequest(url: string, options: https.RequestOptions, body?: string): Promise<{ status: number; data: string; headers: Record<string, string> }> {
   return new Promise((resolve, reject) => {
@@ -33,7 +43,7 @@ async function proxyRequest(request: NextRequest, path: string[], method: string
 
   try {
     const headers: Record<string, string> = {
-      'Origin': APP_ORIGIN,
+      'Origin': getRequestOrigin(request),
       'Content-Type': 'application/json',
     };
 
