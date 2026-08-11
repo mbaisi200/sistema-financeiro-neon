@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { authClient } from '@/lib/auth/client';
-import { dbSelectOne, dbInsert, dbExecute } from '@/lib/db-helpers';
+import { dbSelectOne, dbSelect, dbInsert, dbExecute, dbTableExists } from '@/lib/db-helpers';
 import { Bank, Category, CreditCard, Transaction, CreditCardTransaction, ScheduledTransaction, DEFAULT_BANKS, DEFAULT_CATEGORIES, ADMIN_EMAILS } from '@/lib/types';
 
 export interface DescriptionMapping {

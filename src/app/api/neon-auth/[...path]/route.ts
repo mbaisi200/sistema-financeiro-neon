@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import https from 'https';
 
 const NEON_AUTH_URL = process.env.NEON_AUTH_BASE_URL!;
-const APP_ORIGIN = 'https://sistema-financeiro-neon.vercel.app';
+const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
 export const dynamic = 'force-dynamic';
 
