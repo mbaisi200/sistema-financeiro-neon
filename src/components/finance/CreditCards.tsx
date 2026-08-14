@@ -361,7 +361,7 @@ await addCreditCardTransaction({
                       <div style={{ fontSize: '0.8rem', color: '#4b5563' }}>🏦 {getBankName(c.bank)}</div>
                     </div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.8rem' }}>
+                  <div className="stack-on-mobile" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.8rem' }}>
                     <div>Dívida: <strong>{fmt(Math.max(0, totalDebt))}</strong></div>
                     <div>Limite: <strong>{fmt(c.limit)}</strong></div>
                     <div>Disponível: <strong style={{ color: available < 0 ? '#ef4444' : '#10b981' }}>{fmt(available)}</strong></div>
@@ -422,22 +422,22 @@ await addCreditCardTransaction({
                 const isPayment = t.isPayment || t.value < 0;
                 return (
                   <tr key={t.id}>
-                    <td>
+                    <td className="td-actions">
                       <div className="table-actions">
                         <button className="btn btn-sm btn-secondary" onClick={() => { setEditTx(t); setShowEdit(true); }}>✏️</button>
                         <button className="btn btn-sm btn-danger" onClick={() => handleDeletePurchase(t.id)}>🗑️</button>
                       </div>
                     </td>
-                    <td>{fmtDate(t.date)}</td>
-                    <td>{t.description}</td>
-                    <td><span className="badge card">{card?.icon || '💳'} {card?.name || '?'}</span></td>
-                    <td><span className="badge category">{getCategoryIcon(t.category)} {getCategoryName(t.category)}</span></td>
-                    <td className={`text-right ${isPayment ? 'value-credit' : 'value-debit'}`}>{fmt(Math.abs(t.value))}</td>
+                    <td data-label="Data">{fmtDate(t.date)}</td>
+                    <td data-label="Descrição">{t.description}</td>
+                    <td data-label="Cartão"><span className="badge card">{card?.icon || '💳'} {card?.name || '?'}</span></td>
+                    <td data-label="Categoria"><span className="badge category">{getCategoryIcon(t.category)} {getCategoryName(t.category)}</span></td>
+                    <td data-label="Valor" className={`text-right ${isPayment ? 'value-credit' : 'value-debit'}`}>{fmt(Math.abs(t.value))}</td>
                   </tr>
                 );
               })}
               {/* Total Row */}
-              <tr style={{ background: '#f3f4f6', fontWeight: 'bold' }}>
+              <tr className="table-total-row" style={{ background: '#f3f4f6', fontWeight: 'bold' }}>
                 <td colSpan={5} style={{ textAlign: 'right', paddingRight: '1rem' }}>
                   Total Filtrado:
                 </td>

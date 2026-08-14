@@ -743,7 +743,7 @@ export function Dashboard() {
             <div style={{ fontWeight: '600', color: '#0369a1', marginBottom: '0.5rem' }}>
               📅 Lançamentos Programados no Período: {scheduledCount}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', fontSize: '0.8rem' }}>
+            <div className="stack-on-mobile" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', fontSize: '0.8rem' }}>
               {scheduledCreditCount > 0 && (
                 <div style={{ color: '#059669' }}>💰 Receitas: {scheduledCreditCount} (+{fmt(scheduledCreditIncomeTotal)})</div>
               )}
@@ -926,7 +926,7 @@ export function Dashboard() {
 
             {/* Projeção por Mês */}
             <h4 style={{ marginBottom: '1rem' }}>📅 Projeção Próximos 6 Meses</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
+            <div className="stack-on-mobile" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
               {projections.map((p, i) => (
                 <div key={p.month} style={{ 
                   padding: '0.75rem', 
@@ -1113,7 +1113,7 @@ export function Dashboard() {
 
       {/* Category Report Modal */}
       {categoryReport && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -1126,7 +1126,7 @@ export function Dashboard() {
           zIndex: 1000,
           padding: '1rem'
         }} onClick={() => setCategoryReport(null)}>
-          <div style={{
+          <div className="modal-card" style={{
             background: 'white',
             borderRadius: '0.75rem',
             maxWidth: '800px',
@@ -1181,16 +1181,16 @@ export function Dashboard() {
                   <tbody>
                     {categoryReport.transactions.map((t, i) => (
                       <tr key={i}>
-                        <td>{fmtDate(t.date)}</td>
-                        <td>{t.description}</td>
-                        <td>
+                        <td data-label="Data">{fmtDate(t.date)}</td>
+                        <td data-label="Descrição">{t.description}</td>
+                        <td data-label={categoryReport.type === 'card' ? 'Cartão' : 'Banco'}>
                           {t.card ? (
                             <span className="badge card">{getCardIcon(t.card)} {getCardName(t.card)}</span>
                           ) : (
                             <span className="badge bank">{getBankIcon(t.bank)} {getBankName(t.bank)}</span>
                           )}
                         </td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(t.value)}</td>
+                        <td data-label="Valor" style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(t.value)}</td>
                       </tr>
                     ))}
                   </tbody>

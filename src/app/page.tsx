@@ -227,7 +227,7 @@ function AppContent() {
         
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Email do usuário */}
-          <div style={{ 
+          <div className="user-email-pill" style={{ 
             display: 'flex', 
             alignItems: 'center', 
             gap: '0.5rem', 
@@ -312,7 +312,7 @@ function AppContent() {
 
       {/* Backup Modal */}
       {showBackupModal && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -324,7 +324,7 @@ function AppContent() {
           justifyContent: 'center',
           zIndex: 1000
         }}>
-          <div style={{
+          <div className="modal-card" style={{
             background: 'white',
             padding: '2rem',
             borderRadius: '0.5rem',

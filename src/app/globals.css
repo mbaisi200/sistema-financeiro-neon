@@ -259,3 +259,126 @@ body {
 .flex-end { display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; }
 .w-full { width: 100%; }
 .mb-4 { margin-bottom: 1rem; }
+
+/* ========================================================
+   RESPONSIVO MOBILE
+   As regras abaixo só valem em telas pequenas (<= 640px)
+   e não alteram o layout desktop.
+   ======================================================== */
+@media (max-width: 640px) {
+  /* Empilha grids fixos em coluna única */
+  .stack-on-mobile {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Cabeçalho: pílula do e-mail não estoura a tela */
+  .user-email-pill {
+    max-width: 100%;
+  }
+  .user-email-pill span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 45vw;
+    min-width: 0;
+  }
+
+  /* Modais fixos: respiro nas bordas e padding interno menor */
+  .modal-overlay {
+    padding: 1rem;
+  }
+  .modal-card {
+    padding: 1.25rem !important;
+  }
+
+  /* ============ TABELAS VIRAM CARDS EMPILHADOS ============ */
+  .table-container {
+    overflow: visible;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .table {
+    min-width: 0;
+    display: block;
+    width: 100%;
+  }
+  .table thead {
+    display: none;
+  }
+  .table tbody {
+    display: block;
+    width: 100%;
+  }
+  .table tr {
+    display: block;
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--gray-200);
+    border-radius: 0.75rem;
+    box-shadow: var(--shadow);
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.35rem 0;
+    border-bottom: none;
+    text-align: right;
+    font-size: 0.85rem;
+  }
+  .table td::before {
+    content: attr(data-label);
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--gray-600);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  /* Célula de ações: botões à esquerda, sem rótulo */
+  .table td.td-actions {
+    justify-content: flex-start;
+    margin-top: 0.25rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--gray-200);
+  }
+  .table td.td-actions::before {
+    content: none;
+  }
+
+  /* Células de mensagem central (carregando / vazio) */
+  .table td.td-empty {
+    display: block;
+    text-align: center;
+    padding: 1.5rem 0.5rem;
+  }
+  .table td.td-empty::before {
+    content: none;
+  }
+
+  /* Linha de total com poucas colunas: vira uma linha só */
+  .table tr.table-total-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .table tr.table-total-row td {
+    display: block;
+    flex: 1;
+    padding: 0.5rem 0;
+    border: none;
+  }
+  .table tr.table-total-row td::before {
+    content: none;
+  }
+  .table tr.table-total-row td:last-child {
+    text-align: right;
+  }
+}

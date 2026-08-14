@@ -1,141 +1,77 @@
-# 🚀 Welcome to Z.ai Code Scaffold
+# 💰 Sistema Financeiro (Planilha Financeira)
 
-A modern, production-ready web application scaffold powered by cutting-edge technologies, designed to accelerate your development with [Z.ai](https://chat.z.ai)'s AI-powered coding assistance.
+Sistema de gestão financeira pessoal com dashboard de análise, lançamentos, contas bancárias, cartões de crédito e lançamentos futuros. Acessível de desktop e **totalmente responsivo para mobile** (em telas pequenas, as tabelas viram cards empilhados sem alterar o layout desktop).
 
-## ✨ Technology Stack
+## ✨ Funcionalidades
 
-This scaffold provides a robust foundation built with:
+- **📊 Dashboard** — análise financeira com gráficos de pizza, fluxo de caixa, saúde financeira, comprometimento da receita e projeção dos próximos 6 meses
+- **📝 Lançamentos** — entradas e saídas por banco/categoria, com saldo por conta, filtros por período e exportação CSV
+- **📅 Lançamentos Futuros** — lançamentos únicos, parcelados e recorrentes, com confirmação automática no vencimento
+- **💳 Cartões de Crédito** — limite, dívida, faturas e **importação de CSV** de faturas (Itaú, Nubank, Bradesco, Sicredi e outros) com sugestão automática de categorias
+- **🏦 Bancos e 🏷️ Categorias** — cadastro com emoji e saldo inicial
+- **👑 Painel Admin** — criação de usuários com validade, convites pendentes, sincronização e estatísticas do banco de dados
+- **💾 Backup e Restore** — exportação/importação de todos os dados em JSON (mesclar ou substituir)
+- **📱 Responsivo** — layout adaptado para celulares e tablets (tabelas empilhadas, grids em coluna única)
 
-### 🎯 Core Framework
-- **⚡ Next.js 16** - The React framework for production with App Router
-- **📘 TypeScript 5** - Type-safe JavaScript for better developer experience
-- **🎨 Tailwind CSS 4** - Utility-first CSS framework for rapid UI development
+## 🛠️ Stack
 
-### 🧩 UI Components & Styling
-- **🧩 shadcn/ui** - High-quality, accessible components built on Radix UI
-- **🎯 Lucide React** - Beautiful & consistent icon library
-- **🌈 Framer Motion** - Production-ready motion library for React
-- **🎨 Next Themes** - Perfect dark mode in 2 lines of code
+- **Next.js 14** (App Router) + **React 18** + **TypeScript**
+- **Neon Postgres** + **Neon Auth** (Better Auth) — autenticação com expiração de acesso
+- **Tailwind CSS** + **shadcn/ui**
+- **Recharts** — gráficos
+- **@neondatabase/serverless** + **pg** — acesso ao banco via API routes
 
-### 📋 Forms & Validation
-- **🎣 React Hook Form** - Performant forms with easy validation
-- **✅ Zod** - TypeScript-first schema validation
-
-### 🔄 State Management & Data Fetching
-- **🐻 Zustand** - Simple, scalable state management
-- **🔄 TanStack Query** - Powerful data synchronization for React
-- **🌐 Fetch** - Promise-based HTTP request
-
-### 🗄️ Database & Backend
-- **🗄️ Prisma** - Next-generation TypeScript ORM
-- **🔐 NextAuth.js** - Complete open-source authentication solution
-
-### 🎨 Advanced UI Features
-- **📊 TanStack Table** - Headless UI for building tables and datagrids
-- **🖱️ DND Kit** - Modern drag and drop toolkit for React
-- **📊 Recharts** - Redefined chart library built with React and D3
-- **🖼️ Sharp** - High performance image processing
-
-### 🌍 Internationalization & Utilities
-- **🌍 Next Intl** - Internationalization library for Next.js
-- **📅 Date-fns** - Modern JavaScript date utility library
-- **🪝 ReactUse** - Collection of essential React hooks for modern development
-
-## 🎯 Why This Scaffold?
-
-- **🏎️ Fast Development** - Pre-configured tooling and best practices
-- **🎨 Beautiful UI** - Complete shadcn/ui component library with advanced interactions
-- **🔒 Type Safety** - Full TypeScript configuration with Zod validation
-- **📱 Responsive** - Mobile-first design principles with smooth animations
-- **🗄️ Database Ready** - Prisma ORM configured for rapid backend development
-- **🔐 Auth Included** - NextAuth.js for secure authentication flows
-- **📊 Data Visualization** - Charts, tables, and drag-and-drop functionality
-- **🌍 i18n Ready** - Multi-language support with Next Intl
-- **🚀 Production Ready** - Optimized build and deployment settings
-- **🤖 AI-Friendly** - Structured codebase perfect for AI assistance
-
-## 🚀 Quick Start
+## 🚀 Como executar
 
 ```bash
-# Install dependencies
-bun install
+# Instalar dependências
+npm install
 
-# Start development server
-bun run dev
+# Desenvolvimento
+npm run dev
 
-# Build for production
-bun run build
+# Build de produção
+npm run build
 
-# Start production server
-bun start
+# Produção
+npm start
+
+# Lint
+npm run lint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see your application running.
+Acesse [http://localhost:3000](http://localhost:3000) — você será redirecionado para a página de login.
 
-## 🤖 Powered by Z.ai
+## ⚙️ Configuração
 
-This scaffold is optimized for use with [Z.ai](https://chat.z.ai) - your AI assistant for:
+1. **Variáveis de ambiente** — copie/edite o arquivo `.env` (não versionado):
+   ```env
+   DATABASE_URL=postgresql://user:pass@host/neondb?sslmode=require
+   NEON_AUTH_BASE_URL=https://ep-xxx.neonauth.us-east-1.aws.neon.tech/neondb/auth
+   NEON_AUTH_COOKIE_SECRET=secret_com_32+_caracteres
+   ```
+2. **Tabelas** — execute `migration/setup-neon-complete.sql` no SQL Editor do Neon. Documentação extra em `docs/` (tabela de lançamentos futuros, políticas RLS, sincronização de usuários).
 
-- **💻 Code Generation** - Generate components, pages, and features instantly
-- **🎨 UI Development** - Create beautiful interfaces with AI assistance  
-- **🔧 Bug Fixing** - Identify and resolve issues with intelligent suggestions
-- **📝 Documentation** - Auto-generate comprehensive documentation
-- **🚀 Optimization** - Performance improvements and best practices
+Para a migração completa do Supabase para Neon, siga o guia em [`migration/README.md`](migration/README.md).
 
-Ready to build something amazing? Start chatting with Z.ai at [chat.z.ai](https://chat.z.ai) and experience the future of AI-powered development!
-
-## 📁 Project Structure
+## 📁 Estrutura
 
 ```
 src/
-├── app/                 # Next.js App Router pages
-├── components/          # Reusable React components
-│   └── ui/             # shadcn/ui components
-├── hooks/              # Custom React hooks
-└── lib/                # Utility functions and configurations
+├── app/                 # Páginas e API routes (App Router)
+│   ├── api/             # Endpoints (user-data, admin, backup, neon-auth...)
+│   └── auth/            # Login e cadastro
+├── components/
+│   ├── finance/         # Dashboard, Transactions, CreditCards, Banks...
+│   └── ui/              # shadcn/ui
+├── contexts/            # FinanceContext (estado global + Neon)
+└── lib/                 # Tipos, helpers de banco e parsers de CSV
+migration/               # Scripts de migração Supabase → Neon
+docs/                    # SQLs e documentação complementar
 ```
 
-## 🎨 Available Features & Components
+## 🔐 Segurança
 
-This scaffold includes a comprehensive set of modern web development tools:
-
-### 🧩 UI Components (shadcn/ui)
-- **Layout**: Card, Separator, Aspect Ratio, Resizable Panels
-- **Forms**: Input, Textarea, Select, Checkbox, Radio Group, Switch
-- **Feedback**: Alert, Toast (Sonner), Progress, Skeleton
-- **Navigation**: Breadcrumb, Menubar, Navigation Menu, Pagination
-- **Overlay**: Dialog, Sheet, Popover, Tooltip, Hover Card
-- **Data Display**: Badge, Avatar, Calendar
-
-### 📊 Advanced Data Features
-- **Tables**: Powerful data tables with sorting, filtering, pagination (TanStack Table)
-- **Charts**: Beautiful visualizations with Recharts
-- **Forms**: Type-safe forms with React Hook Form + Zod validation
-
-### 🎨 Interactive Features
-- **Animations**: Smooth micro-interactions with Framer Motion
-- **Drag & Drop**: Modern drag-and-drop functionality with DND Kit
-- **Theme Switching**: Built-in dark/light mode support
-
-### 🔐 Backend Integration
-- **Authentication**: Ready-to-use auth flows with NextAuth.js
-- **Database**: Type-safe database operations with Prisma
-- **API Client**: HTTP requests with Fetch + TanStack Query
-- **State Management**: Simple and scalable with Zustand
-
-### 🌍 Production Features
-- **Internationalization**: Multi-language support with Next Intl
-- **Image Optimization**: Automatic image processing with Sharp
-- **Type Safety**: End-to-end TypeScript with Zod validation
-- **Essential Hooks**: 100+ useful React hooks with ReactUse for common patterns
-
-## 🤝 Get Started with Z.ai
-
-1. **Clone this scaffold** to jumpstart your project
-2. **Visit [chat.z.ai](https://chat.z.ai)** to access your AI coding assistant
-3. **Start building** with intelligent code generation and assistance
-4. **Deploy with confidence** using the production-ready setup
-
----
-
-Built with ❤️ for the developer community. Supercharged by [Z.ai](https://chat.z.ai) 🚀
+- Credenciais ficam apenas em `.env` (ignorado pelo Git)
+- Painel Admin restrito a e-mails de administradores (`ADMIN_EMAILS` em `src/lib/types.ts`)
+- Acesso dos usuários controlado por data de validade (`expires_at`)

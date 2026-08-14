@@ -586,9 +586,9 @@ export function AdminPanel({ showNotification }: { showNotification: (msg: strin
               <tbody>
                 {filteredPending.map(u => (
                   <tr key={u.id}>
-                    <td>{u.email}</td>
-                    <td>{new Date(u.createdAt).toLocaleDateString('pt-BR')}</td>
-                    <td>
+                    <td data-label="Email">{u.email}</td>
+                    <td data-label="Criado em">{new Date(u.createdAt).toLocaleDateString('pt-BR')}</td>
+                    <td className="td-actions">
                       <button 
                         className="btn btn-sm btn-danger" 
                         onClick={() => handleDeletePending(u.id, u.email)}
@@ -638,13 +638,13 @@ export function AdminPanel({ showNotification }: { showNotification: (msg: strin
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '2rem' }}>
+                <td colSpan={7} className="td-empty" style={{ textAlign: 'center', padding: '2rem' }}>
                   Carregando...
                 </td>
               </tr>
             ) : filteredUsers.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+                <td colSpan={7} className="td-empty" style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
                   Nenhum usuário encontrado
                 </td>
               </tr>
@@ -653,10 +653,10 @@ export function AdminPanel({ showNotification }: { showNotification: (msg: strin
                 const expired = isUserExpired(u.expiresAt);
                 return (
                   <tr key={u.uid} style={{ opacity: expired ? 0.6 : 1 }}>
-                    <td>{u.email}</td>
-                    <td style={{ fontSize: '0.85rem', color: '#6b7280' }}>{u.createdBy || 'N/A'}</td>
-                    <td>{formatDate(u.expiresAt)}</td>
-                    <td>
+                    <td data-label="Email">{u.email}</td>
+                    <td data-label="Criado por" style={{ fontSize: '0.85rem', color: '#6b7280' }}>{u.createdBy || 'N/A'}</td>
+                    <td data-label="Validade">{formatDate(u.expiresAt)}</td>
+                    <td data-label="Status">
                       {u.isAdmin ? (
                         <span className="badge" style={{ background: '#8b5cf6' }}>♾️ Ilimitado</span>
                       ) : expired ? (
@@ -667,13 +667,13 @@ export function AdminPanel({ showNotification }: { showNotification: (msg: strin
                         <span className="badge" style={{ background: '#3b82f6' }}>♾️ Sem limite</span>
                       )}
                     </td>
-                    <td>{new Date(u.createdAt).toLocaleDateString('pt-BR')}</td>
-                    <td>
+                    <td data-label="Criado em">{new Date(u.createdAt).toLocaleDateString('pt-BR')}</td>
+                    <td data-label="Tipo">
                       <span className={`badge ${u.isAdmin ? 'credit' : 'debit'}`}>
                         {u.isAdmin ? '👑 Admin' : '👤 Usuário'}
                       </span>
                     </td>
-                    <td>
+                    <td className="td-actions">
                       {!u.isAdmin ? (
                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                           <button
@@ -752,7 +752,7 @@ export function AdminPanel({ showNotification }: { showNotification: (msg: strin
         {showDbStats && (
           <>
             {/* Client Selector */}
-            <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
+            <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                 <label className="form-label">Selecionar cliente</label>
                 <select
@@ -816,7 +816,7 @@ export function AdminPanel({ showNotification }: { showNotification: (msg: strin
                 {!dbStatsClientFilter && dbStats.stats.length > 1 && (
                   <div style={{ marginBottom: '1.5rem' }}>
                     <h4 style={{ margin: '0 0 1rem 0', color: '#4b5563' }}>📊 Tamanho do BD por Cliente (MB)</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
+                    <div className="stack-on-mobile" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
                       <div style={{ padding: '1rem', background: '#f9fafb', borderRadius: '0.5rem' }}>
                         <ResponsiveContainer width="100%" height={350}>
                           <PieChart>
@@ -902,37 +902,37 @@ export function AdminPanel({ showNotification }: { showNotification: (msg: strin
                         <tbody>
                           {dbStats.stats.map((s) => (
                             <tr key={s.clientId}>
-                              <td style={{ fontWeight: 500 }}>{s.clientEmail}</td>
+                              <td data-label="Cliente" style={{ fontWeight: 500 }}>{s.clientEmail}</td>
                               {dbStats.tables.map((table: string) => (
-                                <td key={table} style={{ textAlign: 'center' }}>
+                                <td key={table} data-label={table.replace(/_/g, ' ')} style={{ textAlign: 'center' }}>
                                   <span className="badge" style={{ background: s.stats[table] > 0 ? '#22c55e' : '#e5e7eb', color: s.stats[table] > 0 ? 'white' : '#6b7280' }}>
                                     {s.stats[table] || 0}
                                   </span>
                                 </td>
                               ))}
-                              <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                              <td data-label="Total" style={{ textAlign: 'center', fontWeight: 'bold' }}>
                                 {s.total}
                               </td>
-                              <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#3b82f6' }}>
+                              <td data-label="Tamanho" style={{ textAlign: 'center', fontWeight: 'bold', color: '#3b82f6' }}>
                                 {s.sizeMB} MB
                               </td>
                             </tr>
                           ))}
                           {/* Totalizer Row */}
                           <tr style={{ background: '#f0f9ff', borderTop: '3px solid #3b82f6' }}>
-                            <td style={{ fontWeight: 'bold', color: '#3b82f6' }}>TOTAL GERAL</td>
+                            <td data-label="Cliente" style={{ fontWeight: 'bold', color: '#3b82f6' }}>TOTAL GERAL</td>
                             {dbStats.tables.map((table: string) => {
                               const total = dbStats.stats.reduce((acc, s) => acc + (s.stats[table] || 0), 0);
                               return (
-                                <td key={table} style={{ textAlign: 'center', fontWeight: 'bold', color: '#3b82f6' }}>
+                                <td key={table} data-label={table.replace(/_/g, ' ')} style={{ textAlign: 'center', fontWeight: 'bold', color: '#3b82f6' }}>
                                   {total}
                                 </td>
                               );
                             })}
-                            <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#3b82f6' }}>
+                            <td data-label="Total" style={{ textAlign: 'center', fontWeight: 'bold', color: '#3b82f6' }}>
                               {dbStats.stats.reduce((acc, s) => acc + s.total, 0)}
                             </td>
-                            <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#3b82f6' }}>
+                            <td data-label="Tamanho" style={{ textAlign: 'center', fontWeight: 'bold', color: '#3b82f6' }}>
                               {dbStats.totalSizeMB} MB
                             </td>
                           </tr>
@@ -953,7 +953,7 @@ export function AdminPanel({ showNotification }: { showNotification: (msg: strin
 
       {/* Edit Modal */}
       {editModal && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -965,7 +965,7 @@ export function AdminPanel({ showNotification }: { showNotification: (msg: strin
           justifyContent: 'center',
           zIndex: 1000
         }}>
-          <div style={{
+          <div className="modal-card" style={{
             background: 'white',
             padding: '2rem',
             borderRadius: '0.5rem',
@@ -1013,7 +1013,7 @@ export function AdminPanel({ showNotification }: { showNotification: (msg: strin
 
       {/* Seed Demo Modal */}
       {seedModal && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -1025,7 +1025,7 @@ export function AdminPanel({ showNotification }: { showNotification: (msg: strin
           justifyContent: 'center',
           zIndex: 1000
         }}>
-          <div style={{
+          <div className="modal-card" style={{
             background: 'white',
             padding: '2rem',
             borderRadius: '0.5rem',
@@ -1045,7 +1045,7 @@ export function AdminPanel({ showNotification }: { showNotification: (msg: strin
               </p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+            <div className="stack-on-mobile" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div className="form-group">
                 <label className="form-label">Data Inicial *</label>
                 <input

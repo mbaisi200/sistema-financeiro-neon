@@ -456,7 +456,7 @@ import { toUpperCase, type CreditCardTransaction } from '@/lib/types';
                 O sistema tentou detectar automaticamente. Ajuste se necessário.
               </p>
               
-              <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="form-grid stack-on-mobile" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                   <label className="form-label">Coluna de Data</label>
                   <select 
@@ -541,7 +541,7 @@ import { toUpperCase, type CreditCardTransaction } from '@/lib/types';
              {/* Card/Category Selection */}
              <div className="card" style={{ marginBottom: '1rem', padding: '1rem' }}>
                <h4 style={{ marginBottom: '1rem' }}>⚙️ Configurar Importação</h4>
-               <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+               <div className="form-grid stack-on-mobile" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                  <div className="form-group">
                    <label className="form-label" style={{ color: '#ef4444' }}>Cartão de Crédito *</label>
                    <select 
@@ -670,7 +670,7 @@ import { toUpperCase, type CreditCardTransaction } from '@/lib/types';
                    return null;
                  })()}
                  
-                 <div style={{ 
+                 <div className="stack-on-mobile" style={{ 
                    maxHeight: uniqueDescriptions.length > 20 ? '300px' : 'auto', 
                    overflowY: 'auto', 
                    display: 'grid', 
@@ -748,17 +748,17 @@ import { toUpperCase, type CreditCardTransaction } from '@/lib/types';
                        const cat = categories.find(c => c.id === catId);
                        return (
                          <tr key={i}>
-                           <td>{fmtDate(row.date)}</td>
-                           <td>{row.description}</td>
-                           <td className={isPayment ? 'value-credit' : 'value-debit'}>
+                           <td data-label="Data">{fmtDate(row.date)}</td>
+                           <td data-label="Descrição">{row.description}</td>
+                           <td data-label="Valor" className={isPayment ? 'value-credit' : 'value-debit'}>
                              {fmt(Math.abs(row.value))}
                            </td>
-                           <td>
+                           <td data-label="Tipo">
                              <span className={`badge ${isPayment ? 'category' : 'card'}`}>
                                {isPayment ? '📥 Estorno' : '💳 Compra'}
                              </span>
                            </td>
-                           <td>
+                           <td data-label="Categoria">
                              {cat ? (
                                <span className="badge category">{cat.icon} {cat.name}</span>
                              ) : (
@@ -770,7 +770,7 @@ import { toUpperCase, type CreditCardTransaction } from '@/lib/types';
                      })}
                      {validRows.length > 50 && (
                        <tr>
-                         <td colSpan={5} style={{ textAlign: 'center', color: '#6b7280' }}>
+                         <td colSpan={5} className="td-empty" style={{ textAlign: 'center', color: '#6b7280' }}>
                            ... e mais {validRows.length - 50} lançamentos
                          </td>
                        </tr>
@@ -782,7 +782,7 @@ import { toUpperCase, type CreditCardTransaction } from '@/lib/types';
 
             {/* Totals */}
             <div className="card" style={{ marginBottom: '1rem', padding: '1rem', background: '#f9fafb' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', textAlign: 'center' }}>
+              <div className="stack-on-mobile" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', textAlign: 'center' }}>
                 <div>
                   <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{validRows.length}</div>
                   <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>Lançamentos</div>

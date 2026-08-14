@@ -364,7 +364,7 @@ export function Transactions({ showNotification }: { showNotification: (msg: str
                           onMouseEnter={(e) => e.currentTarget.style.background = '#f0f9ff'}
                           onMouseLeave={(e) => e.currentTarget.style.background = idx % 2 === 0 ? 'white' : '#fafafa'}
                           >
-                            <td>
+                            <td className="td-actions">
                               <div className="table-actions">
                                 <button 
                                   className="btn btn-sm btn-secondary" 
@@ -382,20 +382,20 @@ export function Transactions({ showNotification }: { showNotification: (msg: str
                                 </button>
                               </div>
                             </td>
-                            <td>
+                            <td data-label="Descrição">
                               <strong>{t.description}</strong>
                             </td>
-                            <td>
+                            <td data-label="Banco">
                               <span className="badge bank" style={{ fontSize: '0.75rem' }}>
                                 {getBankIcon(t.bank)} {getBankName(t.bank)}
                               </span>
                             </td>
-                            <td>
+                            <td data-label="Categoria">
                               <span className="badge category" style={{ fontSize: '0.75rem' }}>
                                 {getCategoryIcon(t.category)} {getCategoryName(t.category)}
                               </span>
                             </td>
-                            <td>
+                            <td data-label="Tipo">
                               <span 
                                 className="badge" 
                                 style={{ 
@@ -407,7 +407,7 @@ export function Transactions({ showNotification }: { showNotification: (msg: str
                                 {t.type === 'credit' ? '💰 Entrada' : '💸 Saída'}
                               </span>
                             </td>
-                            <td style={{ 
+                            <td data-label="Valor" style={{ 
                               textAlign: 'right', 
                               fontWeight: 600,
                               fontSize: '0.9rem',
@@ -415,7 +415,7 @@ export function Transactions({ showNotification }: { showNotification: (msg: str
                             }}>
                               {t.type === 'debit' ? '-' : '+'}{fmt(t.value)}
                             </td>
-                            <td style={{ textAlign: 'right', color: '#6b7280', fontSize: '0.85rem' }}>
+                            <td data-label="Saldo" style={{ textAlign: 'right', color: '#6b7280', fontSize: '0.85rem' }}>
                               {fmt(balances[t.bank] || 0)}
                             </td>
                           </tr>

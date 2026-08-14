@@ -575,9 +575,9 @@ CREATE POLICY "Users can manage own scheduled transactions" ON scheduled_transac
                       <tr key={s.id} style={{ 
                         background: s.dueDate < today ? '#fef2f2' : (s.dueDate === today ? '#fff7ed' : 'inherit')
                       }}>
-                        <td>{getStatusBadge(s.dueDate)}</td>
-                        <td>{fmtDate(s.dueDate)}</td>
-                        <td>
+                        <td data-label="Status">{getStatusBadge(s.dueDate)}</td>
+                        <td data-label="Data">{fmtDate(s.dueDate)}</td>
+                        <td data-label="Descrição">
                           <strong>{s.description}</strong>
                           {s.type === 'parcel' && (
                             <small style={{ display: 'block', color: '#6b7280' }}>
@@ -585,28 +585,28 @@ CREATE POLICY "Users can manage own scheduled transactions" ON scheduled_transac
                             </small>
                           )}
                         </td>
-                        <td>{getTransactionTypeBadge(s.transactionType || 'debit')}</td>
-                        <td>{getTypeBadge(s.type)}</td>
-                        <td>
+                        <td data-label="Natureza">{getTransactionTypeBadge(s.transactionType || 'debit')}</td>
+                        <td data-label="Tipo">{getTypeBadge(s.type)}</td>
+                        <td data-label="Banco/Cartão">
                           {s.card ? (
                             <span className="badge card">{getCardIcon(s.card)} {getCardName(s.card)}</span>
                           ) : s.bank ? (
                             <span className="badge bank">{getBankIcon(s.bank)} {getBankName(s.bank)}</span>
                           ) : '-'}
                         </td>
-                        <td>
+                        <td data-label="Categoria">
                           {s.category ? (
                             <span className="badge category">{getCategoryIcon(s.category)} {getCategoryName(s.category)}</span>
                           ) : '-'}
                         </td>
-                        <td style={{ 
+                        <td data-label="Valor" style={{ 
                           textAlign: 'right', 
                           fontWeight: 600, 
                           color: s.transactionType === 'credit' ? '#22c55e' : '#ef4444'
                         }}>
                           {s.transactionType === 'credit' ? '+' : '-'}{fmt(s.value)}
                         </td>
-                        <td>
+                        <td className="td-actions">
                           <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'nowrap' }}>
                             <button
                               className="btn btn-sm"
@@ -665,7 +665,7 @@ CREATE POLICY "Users can manage own scheduled transactions" ON scheduled_transac
 
       {/* Modal de Confirmação */}
       {confirmModal && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -678,7 +678,7 @@ CREATE POLICY "Users can manage own scheduled transactions" ON scheduled_transac
           zIndex: 1000,
           padding: '1rem'
         }}>
-          <div style={{
+          <div className="modal-card" style={{
             background: 'white',
             padding: '2rem',
             borderRadius: '0.75rem',
@@ -783,7 +783,7 @@ CREATE POLICY "Users can manage own scheduled transactions" ON scheduled_transac
 
       {/* Modal de Edição */}
       {editModal && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -796,7 +796,7 @@ CREATE POLICY "Users can manage own scheduled transactions" ON scheduled_transac
           zIndex: 1000,
           padding: '1rem'
         }}>
-          <div style={{
+          <div className="modal-card" style={{
             background: 'white',
             padding: '2rem',
             borderRadius: '0.75rem',
