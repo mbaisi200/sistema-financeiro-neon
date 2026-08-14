@@ -17,6 +17,31 @@ function getRequestOrigin(request: NextRequest): string {
   return APP_ORIGIN;
 }
 
+// Verifica se o app está sendo servido via HTTPS.
+// Em HTTP puro (ex.: acesso local por IP da rede, como http://192.168.x.x:81),
+// navegadores móveis REJEITAM cookies com atributo Secure (ou SameSite=None,
+// que exige Secure) e o login falha silenciosamente. Por isso os cookies
+// precisam ser saneados quando a conexão não é segura.
+function isSecureRequest(request: NextRequest): boolean {
+  const proto = request.headers.get('x-forwarded-proto');
+  if (proto) {
+    return proto.split(',')[0].trim().toLowerCase() === 'https';
+  }
+  return request.nextUrl.protocol === 'https:';
+}
+
+// Remove atributos de cookie incompatíveis com HTTP puro:
+// - "Secure" não pode existir fora de HTTPS
+// - "SameSite=None" exige Secure, então vira "SameSite=Lax"
+function sanitizeSetCookie(setCookieValues: string[], secure: boolean): string[] {
+  if (secure) return setCookieValues;
+  return setCookieValues.map((cookie) =>
+    cookie
+      .replace(/;\s*Secure\b/gi, '')
+      .replace(/;\s*SameSite=None/gi, '; SameSite=Lax')
+  );
+}
+
 function httpsRequest(url: string, options: https.RequestOptions, body?: string): Promise<{ status: number; data: string; headers: Record<string, string> }> {
   return new Promise((resolve, reject) => {
     const req = https.request(url, options, (res) => {
@@ -69,7 +94,7 @@ async function proxyRequest(request: NextRequest, path: string[], method: string
       const cookies = Array.isArray(result.headers['set-cookie'])
         ? result.headers['set-cookie']
         : [result.headers['set-cookie']];
-      cookies.forEach((c) => response.headers.append('set-cookie', c));
+      sanitizeSetCookie(cookies, isSecureRequest(request)).forEach((c) => response.headers.append('set-cookie', c));
     }
 
     response.headers.set('Content-Type', result.headers['content-type'] || 'application/json');
