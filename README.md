@@ -11,7 +11,7 @@ Sistema de gestão financeira pessoal com dashboard de análise, lançamentos, c
 - **🏦 Bancos e 🏷️ Categorias** — cadastro com emoji e saldo inicial
 - **👑 Painel Admin** — criação de usuários com validade, convites pendentes, sincronização e estatísticas do banco de dados
 - **💾 Backup e Restore** — exportação/importação de todos os dados em JSON (mesclar ou substituir)
-- **📱 Responsivo** — layout adaptado para celulares e tablets (tabelas empilhadas, grids em coluna única)
+- **📱 Responsivo** — layout adaptado para celulares e tablets (tabelas empilhadas, grids em coluna única, tabelas viram cards empilhados)
 
 ## 🛠️ Stack
 

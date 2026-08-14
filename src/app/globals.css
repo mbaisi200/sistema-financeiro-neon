@@ -381,4 +381,31 @@ body {
   .table tr.table-total-row td:last-child {
     text-align: right;
   }
+
+  /* ============ ABAS EMPILHADAS (sem scroll horizontal) ============ */
+  .tabs {
+    flex-direction: column;
+    overflow-x: visible;
+    gap: 0;
+    padding: 0;
+    border-bottom: none;
+  }
+  .tab-btn {
+    width: 100%;
+    text-align: left;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--gray-200);
+    border-left: 4px solid transparent;
+    white-space: normal;
+    font-size: 0.95rem;
+  }
+  .tab-btn.active {
+    background: #eff6ff;
+    color: var(--primary);
+    border-bottom: 1px solid var(--gray-200);
+    border-left-color: var(--primary);
+  }
+  .tab-btn:last-child {
+    border-bottom: none;
+  }
 }
